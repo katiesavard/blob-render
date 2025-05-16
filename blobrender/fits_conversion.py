@@ -1,8 +1,6 @@
 import sys
-sys.path.append("/Users/savard/PLUTO/pluto_playtime/plotting_analysis/")
-from pyplutplot import *
-wdir = '/pluto_playtime/data_storage/' #set up working directory where data is stored
-from pluto_luminosity_conversion import *
+import tools
+import numpy as np
 from astropy.io import fits
 
 def print_if(text,verbose):
@@ -119,8 +117,8 @@ def main():
 
 
     #load in data
-    D = load_data_obj(data_dir,image_timestep,data_type=dtype)
-    image_array = load_list(results_folder,ez_filename)
+    D = tools.pyplutplot.load_data_obj(data_dir,image_timestep,data_type=dtype)
+    image_array = tools.pyplutplot.load_list(results_folder,ez_filename)
     image_array_flip = np.concatenate((np.flip(image_array,axis=1),np.array(image_array)),axis=1)
 
     ##############       reshape array       ############################
