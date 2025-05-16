@@ -1,2 +1,2 @@
 # blob-render
-"Transform your simulations into realistic radio images, it's easy!" - Rob Fender
+Basic software to transform simulation images into realistic radio images.
