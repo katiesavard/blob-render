@@ -3,7 +3,6 @@ This file contains the basis functions for the DART (DDA Accelerated Ray Tracing
 Data may be passed as a single homgenous (fixed resolution) mesh, but support is presented for adaptive mesh refinement.
 """
 
-
 import numpy as np
 import os, time, warnings
 import numba as nb
