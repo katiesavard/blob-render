@@ -54,22 +54,14 @@ class Mesh:
 
         l = 0.5
         if fill_quadrants:
-            quart_emm = np.einsum("kji->ijk", pdata)
-            quart_dims = np.shape(quart_emm)
-            hdim = quart_dims[0]
-            # populate FULL array (x4 size)
-            emm = np.zeros(shape=(2 * quart_dims[0], 2 * quart_dims[1], quart_dims[2]))
-            emm[hdim:, hdim:, :] = quart_emm  # +x, +y quadrant
-            emm[hdim:, :hdim, :] = quart_emm[:, ::-1, :]  # +x, -y quadrant
-            emm[:hdim, hdim:, :] = quart_emm[::-1, :, :]  # -x, +y quadrant
-            emm[:hdim, :hdim, :] = quart_emm[::-1, ::-1, :]  # -x, -y quadrant
+            subgrid = np.einsum("kji->ijk", pdata)
+            grid = expand_grid(subgrid)
             if bbox is None: bbox = [[-l, l], [-l, l], [-l, l]]
         else:
             emm = np.einsum("kji->ijk", pdata)
             if bbox is None: bbox = [[0, l], [0, l], [-l, l]]
 
-
-        mb = MeshBlock(bbox, emm)
+        mb = MeshBlock(emm, bbox=bbox)
         if inherit_bake and self.num_meshblocks != 0:
             # copy bake from old MeshBlock
             mb.baked_rays = self.meshblocks[0].baked_rays
@@ -105,10 +97,13 @@ class MeshBlock:
     """
     Create a container for a single homogenous grid of hydrodynamic data. 
     """
-    def __init__(self, bbox, emm, vels=None, c_light=None):
-        self.bbox = bbox # [[xl,xr],[yl,yr],[zl,zr]]
+    def __init__(self, emm, bbox=None, vels=None, c_light=None): # todo: safe parsing
         self.dims = np.shape(emm)
         self.emm = emm
+        if bbox is not None:
+            self.bbox = bbox # [[xl,xr],[yl,yr],[zl,zr]]
+        else:
+            self.bbox = [[-0.5,0.5],[-0.5,0.5],[-0.5,0.5]]
         self.vels = vels # [vx, vy, vz]
         self.c_light = c_light # speed of light in same units as vels
         self.dx = [(self.bbox[i][1] - self.bbox[i][0]) / self.dims[i] for i in range(3)] # cell sizes
