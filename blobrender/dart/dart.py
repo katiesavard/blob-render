@@ -258,6 +258,7 @@ class Screen:
     Create a Screen, defined by an orientation and position in physical space.
     Screen objects allow for image rendering, when passed a Mesh to act as a scene.
     """
+    # TODO: add autoframing routine for sdim
     def __init__(self, R, theta, phi, sdim, pdim, bias=np.array([0,0,1]), tilt=None):
         self.O = R * np.array([np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)])
         self.sdim = sdim
