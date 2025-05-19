@@ -5,7 +5,7 @@ import yaml
 import os
 from .config import SIM_DAT, PLOTS
 
-
+####not currently using this functions because I know the size of my sims but can use it to crop the image if needed
 def find_limits(v,x1,x2,buffer_size,minimum_size):
     ##find top limit
 
@@ -169,22 +169,18 @@ def main():
     data_dir = os.path.join(SIM_DAT, system_name)
     results_folder = os.path.join(PLOTS, system_name) 
 
-    ###########################################################################
+    ###########   load in simulation data ##################
      
-    file_disp = 'disp_array'+str(system_name)
-    init_offset = 200
-    d_vals = tools.load_list(results_folder,file_disp)+init_offset
-    centre = d_vals[image_timestep]
+   
 
+    # this section is specific to PLUTO simulations, where the data is stored in a specific format, and is cylindrical axisymmetric
     D = tools.load_data_obj(data_dir,image_timestep,data_type=dtype)
-    
-
-    v = D.tr1*((kappa*D.prs)**exponent)
-    x1 = D.x1
-    x2 = D.x2
+    v = D.tr1*((kappa*D.prs)**exponent) #pseudo emissivity, 2D array
+    x1 = D.x1 # x1 is the radial axis
+    x2 = D.x2 # x2 is the vertical axis
 
 
-    ############      crop image        #####################################
+    ############      crop image        #################
 
     """if emission isnt in the whole domain then crop before you do the analysis (to save computational time)
     """
@@ -193,6 +189,12 @@ def main():
     #minimum_size = 1300
     #stop_index_top, stop_index_bottom, stop_index_side = find_limits(v,x1,x2,buffer_size,minimum_size)
 
+    # open the displacement file and get the centre of the image, this is to crop the image such that the blob is in the middle
+    # might not be good for general use, hence why I have left the other function in
+    file_disp = 'disp_array'+str(system_name)
+    init_offset = 200
+    d_vals = tools.load_list(results_folder,file_disp)+init_offset
+    centre = d_vals[image_timestep]
     stop_index_side = 650
     minimum_size = 1300
     res = 6
@@ -207,11 +209,13 @@ def main():
     tools.plot_basic(ax1,ax2,em,crop_name,crop_cbartitle,system_name,results_folder) #save the cropped image original
 
     
-   ###### ######      boost emissivity        ###############################
+   ###### ######      boost emissivity (special relativity)        ###############################
 
     beta = (D.vx2[:stop_index_side].T[stop_index_bottom:stop_index_top]).T
     values = tools.doppler_boost_lum(beta,viewing_angle,alpha,em)
 
+
+    # ---------- all below may be replaced by DART at some point --------------- #
 
     ############      make a cylindrical grid        #########################
 
@@ -262,6 +266,7 @@ def main():
     tools.plot_basic(ax1,ax2,np.asarray(integrated_frames).T,rotate_name,rotate_cbartitle,system_name,results_folder)
 
     ############      convert to janskys        #######################################
+
     lum_real_unit = tools.lum_unit_si(eta,P=P_sim,L=L_sim,nu=nu_observe, q=p) #W Hz^-1 sr^-1
     lum_sim = np.asarray(integrated_frames)
     lum_true = lum_sim*lum_real_unit # W Hz^-1 sr^-1
@@ -271,7 +276,7 @@ def main():
     boosted_lum = np.asarray(lum_jansky / (4*np.pi*(distance**2)),dtype='float64')
     tools.save_list(boosted_lum,results_folder,'pixel_lum_'+system_name+'_'+str(image_timestep)+'_'+str(nu_observe/(1e9))+str('GHz'))
 
-    frame_flux = np.sum((boosted_lum*10**3))*2
+    frame_flux = np.sum((boosted_lum*10**3))*2 
     print('total luminosity in frame in mJy: '+str(frame_flux))
 
     # plot image in jaskys and arcseconds 
@@ -282,4 +287,5 @@ def main():
     tools.plot_radio(x,y,(boosted_lum*10**3).T,radio_name,'mJy per pixel',system_name,results_folder)
 
 
-main()
+if __name__ == "__main__":
+    main()
