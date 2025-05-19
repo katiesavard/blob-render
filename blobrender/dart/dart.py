@@ -7,6 +7,21 @@ import numpy as np
 import os, time, warnings
 import numba as nb
 
+def expand_grid(subgrid):
+    """
+    This function accepts data occupying the quarter domain +x,+y,z and stacks it to populate the full space
+    """
+    subgrid = np.einusm("kji->ijk", subgrid)
+    inp_dims = np.shape(subgrid)
+    s = inp_dims[0]
+    grid = np.zeros(shape=(2*inp_dims[0], 2*inp_dims[1], inp_dims[2]))
+    grid[s:,s:,:] = subgrid
+    grid[s:,:s,:] = subgrid[:,::-1,:]
+    grid[:s,s:,:] = subgrid[::-1,:,:]
+    grid[:s,:s,:] = subgrid[::-1,::-1,:]
+
+    return grid
+
 class Mesh:
     """
     Create a container for an arbitrary number of MeshBlocks, each containing emissivity data
