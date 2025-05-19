@@ -57,6 +57,8 @@ class gDART(tk.Frame):
         self.save_lbl.grid(row=3, column=0)
         self.save_ent = tk.Entry(**self.def_args)
         self.save_ent.grid(row=3, column=1, columnspan=2,sticky=tk.W+tk.E)
+        self.prog_bar = tk.Progressbar(**self.def_args, orient=tk.HORIZONTAL, length=100, mode="determinate")
+        self.prog_bar.grid(row=4, column=0, columnspan=3, sticky=tk.W+tk.E)
 
         # construct output display
         img = ImageTk.PhotoImage(Image.open(self.blank_str))
@@ -89,17 +91,25 @@ class gDART(tk.Frame):
             raise Exception("unable to locate .npy file")
         
         try:
-            theta = float(theta)
-            phi = float(phi)
+            theta = float(theta) * np.pi / 180.0
+            phi = float(phi) * np.pi / 180.0
             nx = int(nx)
             ny = int(ny)
         except:
             print("Failure to parse user input, check types")
 
         # load data, setup scene
-        subgrid = np.load(load_str)
-        grid = dt.expand_grid(subgrid)
+        mesh = dt.Mesh()
+        mesh.import_pdata(load_str)
 
+        pdim = [nx, ny]
+        sdim = [0.5,0.5*ny/nx] # TODO: update with autoroutine 
+        screen = dt.Screen(R=2, theta=theta, phi=phi, pdim=pdim, sdim=sdim, tilt=0)
+        render = screen.render(mesh, use_bake=False, verbose=False) # TODO: add prog bar pass
+        image = Image.fromarray(render).convert("L")
+        draw = ImageTk.PhotoImage(image)
+        self.output_pnl.configure(image=draw)
+        self.output_pnl.image = drawn
 
     def boot_gui(self):
         self.root.mainloop()
