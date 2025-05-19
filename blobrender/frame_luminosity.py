@@ -1,45 +1,17 @@
 import sys
-sys.path.append("/Users/savard/PLUTO/pluto_playtime/plotting_analysis/")  
-sys.path.append("/Users/savard/PLUTO/")
 import pyPLUTO as pypl
 import pyPLUTO.pload as pp
-from pyplutplot import *
+import tools
+#from pyplutplot import *
 wdir = '/pluto_playtime/data_storage/' #set up working directory where data is stored
 import matplotlib.pyplot as plt
 import scipy
 from scipy.interpolate import griddata
-from pluto_luminosity_conversion import *
+#from pluto_luminosity_conversion import *
 
-def tstep_to_days(t,dbl_step):
-    """converts simulation steps into days.
-    assumes a fixed simulation time unit writing a step every multiple of dbl_step
-    """
-    T_SIM_YEARS = 1.05*10**(-3)
-    d = t*T_SIM_YEARS*365*dbl_step
-    return d
 
-def days_to_tstep(days, dbl_step):
-    T_SIM_YEARS = 1.05*10**(-3)
-    t = days/(T_SIM_YEARS*365*dbl_step)
-    return t
 
-def gamma_to_beta(gamma):
-    beta = (1.-(gamma**-2))**0.5
-    return beta
 
-def beta_to_gamma(beta):
-    gamma = 1./((1.-beta**2)**0.5)
-    return gamma
-
-def theta_from_beta(beta):
-    theta = np.arccos(0.4/beta)*180/np.pi
-    return theta
-
-def cyl_to_cart(r,z,theta):
-    x = r*np.cos(theta)
-    y = r*np.sin(theta)
-    z = z
-    return x, y, z
 
 def find_limits(v,x1,x2,buffer_size,minimum_size):
     ##find top limit
@@ -110,22 +82,6 @@ def find_limits_com(image_timestep,d_vals):
     return stop_index_top, stop_index_bottom, stop_index_side
 
 
-def angle_to_boost(viewing_angle,beta):
-    gamma = (1-(beta**2))**(-0.5)
-    #change minus sign for approaching (-) or receding (+) jet
-    delta = (gamma**(-1))*(1.0-beta*np.cos(viewing_angle))**(-1)
-    return delta
-
-def doppler_boost_lum(beta,viewing_angle,alpha,lum):
-    delta = angle_to_boost(viewing_angle,beta)
-    boosted_lum = lum*(delta**(2-alpha))
-    return boosted_lum
-
-def cyl_to_cart(r,z,theta):
-    x = r*np.cos(theta)
-    y = r*np.sin(theta)
-    z = z
-    return x, y, z
 
 def ordered_cylindrical_grid(theta_len,z_len,r_len,theta,z,r,values):
     # creating long 2D arrays which correspond to each point in the frame -> ordered by constant z 
@@ -167,9 +123,6 @@ def ordered_cartesian_grid(ax1,ax2,theta,z_cart):
         
     return z_ordered
 
-def m_to_arcseconds(m,distance_in_pc):
-    acs = (m*100)/(1.496*10**(13))*(1/distance_in_pc)
-    return acs
 
 def loader_bar(i,range,modulo): #just for output purposes
     perc = int((i/range)*100)
@@ -210,33 +163,7 @@ def interpolate_cyl_to_cart(x_cart,y_cart,z_ordered,ll,grid_x,grid_y,grid_size,s
         integrated_frames = load_list(results_folder,'integrated_frame_'+system_name+'_'+str(image_timestep))
     return interp_clean, integrated_frames
 
-def plot_basic(a1,a2,data,figname,cbartitle,title,results_folder):
-    fig = plt.figure(figsize=[8,8])
-    plt.pcolormesh(a1,a2,data.T,shading='auto')
-    plt.pcolormesh(-a1,a2,data.T,shading='auto')
-    ax = plt.gca()
-    ax.set_aspect('equal', adjustable='box')
-    cbar = plt.colorbar()
-    plt.title(title)
-    cbar.set_label(cbartitle)
-    save_fig(results_folder,figname,overwrite=True)
-    plt.close()
-    del fig, ax, cbar
 
-def plot_radio(a1,a2,data,figname,cbartitle,title,results_folder):
-    fig = plt.figure(figsize=[8,8])
-    plt.pcolormesh(a1,a2,data.T,cmap='afmhot',shading='auto')
-    plt.pcolormesh(-a1,a2,data.T,cmap='afmhot',shading='auto')
-    ax = plt.gca()
-    ax.set_aspect('equal', adjustable='box')
-    cbar = plt.colorbar()
-    plt.title(title)
-    plt.xlabel('arcseconds')
-    plt.ylabel('arcseconds')
-    cbar.set_label(cbartitle)
-    save_fig(results_folder,figname,overwrite=True)
-    plt.close()
-    del fig, ax, cbar
 
 def main():
 
@@ -285,7 +212,7 @@ def main():
     ###########    setups    ###############
     data_dir = '/pluto_playtime/data_storage/'+system_name+'/' #directory where data is stored
     results_folder = '/Users/savard/PLUTO/pluto_playtime/plotting_analysis/sim_results/{}'.format(system_name) #where you want the results to go
-    angle_degrees = theta_from_beta(gamma_to_beta(gamma))
+    angle_degrees = tools.theta_from_beta(tools.gamma_to_beta(gamma))
     viewing_angle = (2*np.pi)/360 *angle_degrees
     file_disp = 'disp_array'+str(system_name)
     init_offset = 200
