@@ -9,7 +9,7 @@ class gDART(tk.Frame):
     """
     Create a tkinter frame for handling GUI presentation of DART functionality.
     """
-    def __init__(self, mode="light"):
+    def __init__(self, mode="dark"):
         if "dark" in mode.lower(): # convert to kwarg?
             self.txt_col = "white"
             self.bg_col = "black"
@@ -21,52 +21,63 @@ class gDART(tk.Frame):
         
         # define statics
         self.blank_str = os.path.join(Path(__file__).resolve().parent,"blank.png") # todo: protect this
-        self.text_col="black"
-        self.back_col="white"
 
         # generate window and call widget construction
         self.root = tk.Tk()
-        self.root.geometry("1600x500")
+        self.root.geometry("500x500")
         self.root.title("blob-render: gDART")
-        self.root.configure(bg="white")
-        #self.root.resizable(False, False)
+        self.root.configure(bg=self.bg_col)
+        self.root.resizable(False, False)
         tk.Frame.__init__(self, self.root)
         self.create_widgets()
 
     def create_widgets(self):
-        #self.frm_entry = tk.Frame(master=self.root, bg="white")
-
 
         # contstruct user input panel
         self.user_input = tk.Frame(master=self.root, bg=self.bg_col)
         self.def_args = {"master": self.user_input, "bg": self.bg_col, "fg": self.txt_col}
-        hidden_labels = ["load_str", "theta", "phi", "pdim"]
-        input_labels = ["Path to .npy file", "theta", "phi", "Resolution"]
-        for i, hidden_label in enumerate(hidden_labels):
-            setattr(self, hidden_label + "_lbl", tk.Label(text=input_labels[i], **self.def_args))
-            setattr(self, hidden_label + "_ent", tk.Entry(**self.def_args))
-            getattr(self, hidden_label + "_lbl").grid(row=i, column=0)
-            getattr(self, hidden_label + "_ent").grid(row=i, column=1)
 
-        # construct render button
-        self.render_btn = tk.Button(text="Render", command=self.call_renderer, **self.def_args)
-        self.render_btn.grid(row=len(hidden_labels), column=0)
-        self.root.bind("<Return>", self.call_renderer)
+        self.load_lbl = tk.Label(text="Load Path", **self.def_args)
+        self.load_lbl.grid(row=0, column=0)
+        self.load_ent = tk.Entry(**self.def_args)
+        self.load_ent.grid(row=0, column=1, columnspan=2, sticky=tk.W+tk.E)
+        self.pos_lbl = tk.Label(text="(theta, phi)",**self.def_args)
+        self.pos_lbl.grid(row=1, column=0)
+        self.theta_ent = tk.Entry(**self.def_args)
+        self.theta_ent.grid(row=1, column=1)
+        self.phi_ent = tk.Entry(**self.def_args)
+        self.phi_ent.grid(row=1, column=2)
+        self.res_lbl = tk.Label(text="(nx, ny)", **self.def_args)
+        self.res_lbl.grid(row=2, column=0)
+        self.nx_ent = tk.Entry(**self.def_args)
+        self.nx_ent.grid(row=2, column=1)
+        self.ny_ent = tk.Entry(**self.def_args)
+        self.ny_ent.grid(row=2, column=2)
+        self.save_lbl = tk.Label(text="Save path", **self.def_args)
+        self.save_lbl.grid(row=3, column=0)
+        self.save_ent = tk.Entry(**self.def_args)
+        self.save_ent.grid(row=3, column=1, columnspan=2,sticky=tk.W+tk.E)
 
         # construct output display
         img = ImageTk.PhotoImage(Image.open(self.blank_str))
         self.output_pnl = tk.Label(master=self.root, image=img, bg=self.bg_col)
         self.output_pnl.image = img # redundant?
-        self.output_pnl.grid(row=0, column=5, rowspan=6,columnspan=6)
+        self.output_pnl.grid(row=0, column=0)
 
         # place frame
-        self.user_input.grid(row=0, column=0) # revert to root usage? partition inp window?
-        self.output_pnl.grid(row=0, column=1)
+        self.user_input.grid(row=0, column=0)
+        self.output_pnl.grid(row=1, column=0)
+
+        # add call functionality
+        self.root.bind("<Return>", self.call_renderer)
+        self.user_input.bind("<Return>", self.call_renderer)
+        self.output_pnl.bind("<Return>", self.call_renderer)
 
     def call_renderer(self, event=None):
-        load_str = self.load_str_ent.get()
+        load_str = self.laod_ent.get()
         if load_str.replace(" ","") == "":
             return # do not call renderer without real input
+        print("called")
 
     def boot_gui(self):
         self.root.mainloop()
