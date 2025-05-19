@@ -74,10 +74,32 @@ class gDART(tk.Frame):
         self.output_pnl.bind("<Return>", self.call_renderer)
 
     def call_renderer(self, event=None):
-        load_str = self.laod_ent.get()
+        # load data from entry
+        load_str = self.load_ent.get()
+        theta = self.theta_ent.get()
+        phi = self.phi_ent.get()
+        nx = self.nx_ent.get()
+        ny = self.ny_ent.get()
+        save_str = self.save_ent.get()
+
+        # parse data TODO: safe aginst large input
         if load_str.replace(" ","") == "":
             return # do not call renderer without real input
-        print("called")
+        elif not os.path.exists(load_str):
+            raise Exception("unable to locate .npy file")
+        
+        try:
+            theta = float(theta)
+            phi = float(phi)
+            nx = int(nx)
+            ny = int(ny)
+        except:
+            print("Failure to parse user input, check types")
+
+        # load data, setup scene
+        subgrid = np.load(load_str)
+        grid = dt.expand_grid(subgrid)
+
 
     def boot_gui(self):
         self.root.mainloop()
