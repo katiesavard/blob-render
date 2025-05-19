@@ -1,0 +1,13 @@
+system_name: ri0.001_rb0.02_lz2
+image_timestep: 150
+kappa: 0.1
+theta: 62.491498934611414
+gamma: 2.0
+distance_in_pc: 2960
+alpha: -0.507
+P_sim: 1.503e-4
+L_sim: 1e13
+nu_observe: 1.28e9
+eta: 0.75
+dtype: flt
+load_interp: false
