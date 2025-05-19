@@ -1,10 +1,16 @@
+"""
+This file contains the basis functions for the DART (DDA Accelerated Ray Tracing) module, allowing for line-of-sight summation on 3D data.
+Data may be passed as a single homgenous (fixed resolution) mesh, but support is presented for adaptive mesh refinement.
+"""
+
+
 import numpy as np
 import os, time, warnings
 import numba as nb
 
 class Mesh:
     """
-    this class is a wrapper for an arbitrary number of MeshBlocks, each containing emissivity data
+    Create a container for an arbitrary number of MeshBlocks, each containing emissivity data
     Mesh objects are passed to Screen in order to generate images
     """
 
@@ -82,7 +88,9 @@ class Mesh:
         self.nummeshblocks = 0
 
 class MeshBlock:
-
+    """
+    Create a container for a single homogenous grid of hydrodynamic data. 
+    """
     def __init__(self, bbox, emm, vels=None, c_light=None):
         self.bbox = bbox # [[xl,xr],[yl,yr],[zl,zr]]
         self.dims = np.shape(emm)
@@ -219,7 +227,9 @@ class MeshBlock:
         return path, dwells
 
 class Ray:
-
+    """
+    Create a ray as defined by a vector origin and normal
+    """
     def __init__(self, origin, normal):
         self.O = origin
         self.N = normal / np.linalg.norm(normal)
@@ -235,7 +245,10 @@ class Ray:
         return self.O + t * self.N
 
 class Screen:
-
+    """
+    Create a Screen, defined by an orientation and position in physical space.
+    Screen objects allow for image rendering, when passed a Mesh to act as a scene.
+    """
     def __init__(self, R, theta, phi, sdim, pdim, bias=np.array([0,0,1]), tilt=None):
         self.O = R * np.array([np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)])
         self.sdim = sdim
