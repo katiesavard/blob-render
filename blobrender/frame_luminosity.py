@@ -66,9 +66,9 @@ def find_limits(v,x1,x2,buffer_size,minimum_size):
 
     return stop_index_top, stop_index_bottom, stop_index_side
     
-def find_limits_com(stop_index_side,minimum_size,centre,res):
-    stop_index_bottom = (int(centre)*res-int(minimum_size/2))
-    stop_index_top = int(centre)*res+int(minimum_size/2)
+def find_limits_com(stop_index_side,minimum_size,centre,yres):
+    stop_index_bottom = (int(centre)/yres - int(minimum_size/2))
+    stop_index_top = int(centre)/yres + int(minimum_size/2)
     stop_index_bottom
     return stop_index_top, stop_index_bottom, stop_index_side
 
@@ -142,6 +142,7 @@ def main():
     parser.add_argument('--eta', type=float, default=defaults['eta'], help='Equipartition factor')
     parser.add_argument('--dtype', type=str, default=defaults['dtype'], help='PLUTO output data type (flt,dbl,hdf5)')
     parser.add_argument('--load_interp', action='store_true', default=defaults['load_interp'], help='Set this flag to load interpolation (default: False)')
+    parser.add_argument('--y_resolution', type=float, default=defaults['y_resolution'], help='Number of pixels per unit length L_sim in y direction')
 
     args = parser.parse_args()
     # Unpack arguments
@@ -149,11 +150,11 @@ def main():
     image_timestep = args.image_timestep
     kappa = args.kappa
     theta = args.theta
-    gamma = args.gamma
     distance_in_pc = args.distance_in_pc
     alpha = args.alpha
     P_sim = args.P_sim
     L_sim = args.L_sim
+    yres = args.y_resolution
     nu_observe = args.nu_observe
     eta = args.eta
     dtype = args.dtype
@@ -197,8 +198,7 @@ def main():
     centre = d_vals[image_timestep]
     stop_index_side = 650
     minimum_size = 1300
-    res = 6
-    stop_index_top, stop_index_bottom, stop_index_side = find_limits_com(stop_index_side,minimum_size,centre,res)
+    stop_index_top, stop_index_bottom, stop_index_side = find_limits_com(stop_index_side,minimum_size,centre,yres)
 
     em = (v[:stop_index_side].T[stop_index_bottom:stop_index_top]).T #psuedo emissivity, 2D array 
     ax1 = x1[:stop_index_side]
