@@ -112,19 +112,8 @@ def ordered_cartesian_grid(ax1,ax2,thetas,z_cart):
         
     return z_ordered
 
-
-
-
-def main():
-
-    ###########   input arguments    ###############
-
-    """
-    You can input arguments on the command line OR just use default to the ones in default.framelum.yaml
-    The default values are set in the YAML file, which is loaded at the beginning of the script.
-    """
-    # Load defaults from YAML
-    with open('default_framelum.yaml', 'r') as f:
+def get_arguments(yaml_file):
+    with open(yaml_file, 'r') as f:
         defaults = yaml.safe_load(f)
 
     ###########   definitions    ###############
@@ -144,8 +133,21 @@ def main():
     parser.add_argument('--load_interp', action='store_true', default=defaults['load_interp'], help='Set this flag to load interpolation (default: False)')
     parser.add_argument('--y_resolution', type=float, default=defaults['y_resolution'], help='Number of pixels per unit length L_sim in y direction')
 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+def main():
+
+    ###########   input arguments    ###############
+
+    """
+    You can input arguments on the command line OR just use default to the ones in default.framelum.yaml
+    The default values are set in the YAML file, which is loaded at the beginning of the script.
+    """
+    # Load defaults from YAML
+    args = get_arguments('default_framelum.yaml')
+
     # Unpack arguments
+
     system_name = args.system_name
     image_timestep = args.image_timestep
     kappa = args.kappa
