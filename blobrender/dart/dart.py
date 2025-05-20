@@ -330,7 +330,7 @@ class Screen:
             pixel_value += np.sum(weighted_emm)
         return pixel_value
 
-    def render(self, mesh, verbose=False, auto_boost=False, use_bake=False, bake_float_type=np.float32, bake_int_type=np.int16, report_count=10, rebake=False):
+    def render(self, mesh, verbose=False, auto_boost=False, use_bake=False, bake_float_type=np.float32, bake_int_type=np.int16, report_count=10, rebake=False, progress=None, root=None):
         """
         populate an image using rays cast into a scene
         :param mesh: Mesh containing scene data
@@ -409,7 +409,14 @@ class Screen:
                 self.img[*index_pair] = pixel_value
                 if verbose and pixel_num % coarse == 0:
                     print("pixel {0}/{1} drawn, render {2}% complete".format(pixel_num, num_pixels, round(pixel_num/num_pixels * 100,1)))
+                    if progress is not None and root is not None:
+                        completion = pixel_num/num_pixels * 100
+                        progress.set(completion)
+                        root.update()
             if verbose: print("render finished, 100% complete")
+            if progress is not None and root is not None:
+                progress.set(99.9)
+                root.update()
 
         if verbose:
             sum_end = time.perf_counter_ns()

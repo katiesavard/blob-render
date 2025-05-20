@@ -1,7 +1,7 @@
 import dart as dt
 import numpy as np
 import tkinter as tk
-# from tkinter.tkk import Progressbar
+from tkinter import ttk
 from PIL import ImageTk, Image
 from pathlib import Path
 import os
@@ -60,13 +60,16 @@ class gDART(tk.Frame):
         self.ny_ent = tk.Entry(**self.dart_args)
         self.ny_ent.grid(row=3, column=2)
         self.rdr_btn = tk.Button(**self.dart_args, text="Render", command=self.call_renderer)
-        self.rdr_btn.grid(row=4, column=0, columnspan=3, sticky=tk.W+tk.E)
+        self.rdr_btn.grid(row=4, column=0, columnspan=1, sticky=tk.W+tk.E)
+        self.progress = tk.IntVar()
+        self.prog_bar = ttk.Progressbar(master=self.dart_input, orient=tk.HORIZONTAL, length=100, variable=self.progress)
+        self.prog_bar.grid(row=4, column=1, columnspan=2, sticky=tk.W+tk.E)
 
         self.post_input = tk.Frame(master=self.root, bg=self.bg_col)
         self.post_args = {"master": self.post_input, "bg": self.bg_col, "fg": self.txt_col}
 
         self.post_lbl = tk.Label(text="Post-Processing Properties", **self.post_args)
-        self.post_lbl.grid(row=0, column=0, columnspan=2)
+        self.post_lbl.grid(row=0, column=0, columnspan=3)
         self.zoom_lbl = tk.Label(text="Zoom", **self.post_args)
         self.zoom_lbl.grid(row=1, column=0)
         self.zoom_ent = tk.Entry(**self.post_args)
@@ -80,10 +83,7 @@ class gDART(tk.Frame):
         self.save_ent = tk.Entry(**self.post_args)
         self.save_ent.grid(row=3, column=1, columnspan=2,sticky=tk.W+tk.E)
         self.post_btn = tk.Button(**self.post_args, text="Post-Process", command=self.call_postproc)
-        self.post_btn.grid(row=4,column=0, columnspan=2, stick=tk.W+tk.E)
-
-        # self.prog_bar = Progressbar(**self.def_args, orient=tk.HORIZONTAL, length=100, mode="determinate")
-        # self.prog_bar.grid(row=4, column=1, columnspan=2, sticky=tk.W+tk.E)
+        self.post_btn.grid(row=4,column=1, columnspan=2, stick=tk.W+tk.E)
 
         # set default values
         self.load_ent.insert(0, "/scratch/render/interpolated_frame_gamm7_early_287.npy")
@@ -142,6 +142,10 @@ class gDART(tk.Frame):
             self.output_pnl.image = draw
             self.cur_zoom = user_zoom
 
+        save_str = self.save_ent.get()
+        if save_str is not None and save_str.replace(" ","") != "":
+            self.image.save(save_str)
+
         self.resize()
         self.root.update()
 
@@ -176,7 +180,7 @@ class gDART(tk.Frame):
         pdim = [nx, ny]
         sdim = [0.866,0.866*ny/nx] # TODO: update with autoroutine
         screen = dt.Screen(R=2, theta=theta, phi=phi, pdim=pdim, sdim=sdim, tilt=0)
-        self.render = screen.render(mesh, use_bake=False, verbose=True) # TODO: add prog bar pass
+        self.render = screen.render(mesh, use_bake=False, verbose=True, progress=self.progress, root=self.root) # TODO: add prog bar pass
         self.render_dims = np.shape(self.render)
         self.image = Image.fromarray(255 * self.render / np.max(self.render)).convert("L")
         draw = ImageTk.PhotoImage(self.image)
