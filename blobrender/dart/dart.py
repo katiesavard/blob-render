@@ -7,11 +7,11 @@ import numpy as np
 import os, time, warnings
 import numba as nb
 
-def expand_grid(subgrid):
+def expand_grid(inp_grid):
     """
     This function accepts data occupying the quarter domain +x,+y,z and stacks it to populate the full space
     """
-    subgrid = np.einusm("kji->ijk", subgrid)
+    subgrid = np.einsum("kji->ijk", inp_grid)
     inp_dims = np.shape(subgrid)
     s = inp_dims[0]
     grid = np.zeros(shape=(2*inp_dims[0], 2*inp_dims[1], inp_dims[2]))
@@ -54,8 +54,7 @@ class Mesh:
 
         l = 0.5
         if fill_quadrants:
-            subgrid = np.einsum("kji->ijk", pdata)
-            grid = expand_grid(subgrid)
+            emm = expand_grid(pdata)
             if bbox is None: bbox = [[-l, l], [-l, l], [-l, l]]
         else:
             emm = np.einsum("kji->ijk", pdata)
@@ -260,6 +259,9 @@ class Screen:
     """
     # TODO: add autoframing routine for sdim
     def __init__(self, R, theta, phi, sdim, pdim, bias=np.array([0,0,1]), tilt=None):
+        # protect against on axis cast
+        theta += 1e-4
+        phi += 1e-4
         self.O = R * np.array([np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)])
         self.sdim = sdim
         self.pdim = pdim
