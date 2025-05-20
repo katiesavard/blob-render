@@ -110,29 +110,15 @@ class gDART(tk.Frame):
         post_width = self.post_input.winfo_width()
         post_height = self.post_input.winfo_height()
 
-        output_width = self.img_dims[1]
-        output_height = self.img_dims[0]
+        output_width = self.render_dims[1] * self.cur_zoom
+        output_height = self.render_dims[0] * self.cur_zoom
         total_width = np.max([dart_width + post_width, output_width])
         total_height = np.max([dart_height,post_height]) + output_height
-        self.root.geometry(str(total_width) + "x" + str(total_height))
+        self.root.geometry(str(int(total_width)) + "x" + str(int(total_height)))
         self.root.update()
 
     def call_postproc(self):
         if self.render is None: return
-
-        user_zoom = float(self.zoom_ent.get())
-        if user_zoom != self.cur_zoom:
-            old_img_width = self.img_dims[1]
-            old_img_height = self.img_dims[0]
-            zoom_ratio = user_zoom / self.cur_zoom
-            new_img_width = int(old_img_width * zoom_ratio)
-            new_img_height = int(old_img_height * zoom_ratio)
-            self.image = self.image.resize((new_img_width, new_img_height))
-            self.img_dims = np.array([new_img_height, new_img_width])
-            draw = ImageTk.PhotoImage(self.image)
-            self.output_pnl.configure(image=draw)
-            self.output_pnl.image = draw
-            self.cur_zoom = float(self.zoom_ent.get())
 
         user_exp = float(self.exp_ent.get())
         if user_exp != self.cur_exp:
@@ -144,6 +130,17 @@ class gDART(tk.Frame):
             self.output_pnl.configure(image=draw)
             self.output_pnl.image = draw
             self.cur_exp = user_exp
+            self.cur_zoom = 1
+
+        user_zoom = float(self.zoom_ent.get())
+        if user_zoom != self.cur_zoom:
+            img_width = int(self.render_dims[1] * user_zoom)
+            img_height = int(self.render_dims[0] * user_zoom)
+            self.image = self.image.resize((img_width, img_height))
+            draw = ImageTk.PhotoImage(self.image)
+            self.output_pnl.configure(image=draw)
+            self.output_pnl.image = draw
+            self.cur_zoom = user_zoom
 
         self.resize()
         self.root.update()
@@ -155,6 +152,8 @@ class gDART(tk.Frame):
         phi = self.phi_ent.get()
         nx = self.nx_ent.get()
         ny = self.ny_ent.get()
+        self.cur_zoom = 1
+        self.cur_exp = 1
 
         # parse data TODO: safe aginst large input
         if load_str.replace(" ","") == "":
@@ -178,7 +177,7 @@ class gDART(tk.Frame):
         sdim = [0.866,0.866*ny/nx] # TODO: update with autoroutine
         screen = dt.Screen(R=2, theta=theta, phi=phi, pdim=pdim, sdim=sdim, tilt=0)
         self.render = screen.render(mesh, use_bake=False, verbose=True) # TODO: add prog bar pass
-        self.img_dims = np.shape(self.render)
+        self.render_dims = np.shape(self.render)
         self.image = Image.fromarray(255 * self.render / np.max(self.render)).convert("L")
         draw = ImageTk.PhotoImage(self.image)
         if not hasattr(self, "output_pnl"):
@@ -189,6 +188,7 @@ class gDART(tk.Frame):
         else:
             self.output_pnl.configure(image=draw)
             self.output_pnl.image = draw
+        self.resize()
         self.call_postproc()
 
 
