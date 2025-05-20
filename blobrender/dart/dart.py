@@ -1,10 +1,30 @@
+"""
+This file contains the basis functions for the DART (DDA Accelerated Ray Tracing) module, allowing for line-of-sight summation on 3D data.
+Data may be passed as a single homgenous (fixed resolution) mesh, but support is presented for adaptive mesh refinement.
+"""
+
 import numpy as np
 import os, time, warnings
 import numba as nb
 
+def expand_grid(subgrid):
+    """
+    This function accepts data occupying the quarter domain +x,+y,z and stacks it to populate the full space
+    """
+    subgrid = np.einusm("kji->ijk", subgrid)
+    inp_dims = np.shape(subgrid)
+    s = inp_dims[0]
+    grid = np.zeros(shape=(2*inp_dims[0], 2*inp_dims[1], inp_dims[2]))
+    grid[s:,s:,:] = subgrid
+    grid[s:,:s,:] = subgrid[:,::-1,:]
+    grid[:s,s:,:] = subgrid[::-1,:,:]
+    grid[:s,:s,:] = subgrid[::-1,::-1,:]
+
+    return grid
+
 class Mesh:
     """
-    this class is a wrapper for an arbitrary number of MeshBlocks, each containing emissivity data
+    Create a container for an arbitrary number of MeshBlocks, each containing emissivity data
     Mesh objects are passed to Screen in order to generate images
     """
 
@@ -34,22 +54,14 @@ class Mesh:
 
         l = 0.5
         if fill_quadrants:
-            quart_emm = np.einsum("kji->ijk", pdata)
-            quart_dims = np.shape(quart_emm)
-            hdim = quart_dims[0]
-            # populate FULL array (x4 size)
-            emm = np.zeros(shape=(2 * quart_dims[0], 2 * quart_dims[1], quart_dims[2]))
-            emm[hdim:, hdim:, :] = quart_emm  # +x, +y quadrant
-            emm[hdim:, :hdim, :] = quart_emm[:, ::-1, :]  # +x, -y quadrant
-            emm[:hdim, hdim:, :] = quart_emm[::-1, :, :]  # -x, +y quadrant
-            emm[:hdim, :hdim, :] = quart_emm[::-1, ::-1, :]  # -x, -y quadrant
+            subgrid = np.einsum("kji->ijk", pdata)
+            grid = expand_grid(subgrid)
             if bbox is None: bbox = [[-l, l], [-l, l], [-l, l]]
         else:
             emm = np.einsum("kji->ijk", pdata)
             if bbox is None: bbox = [[0, l], [0, l], [-l, l]]
 
-
-        mb = MeshBlock(bbox, emm)
+        mb = MeshBlock(emm, bbox=bbox)
         if inherit_bake and self.num_meshblocks != 0:
             # copy bake from old MeshBlock
             mb.baked_rays = self.meshblocks[0].baked_rays
@@ -82,11 +94,16 @@ class Mesh:
         self.nummeshblocks = 0
 
 class MeshBlock:
-
-    def __init__(self, bbox, emm, vels=None, c_light=None):
-        self.bbox = bbox # [[xl,xr],[yl,yr],[zl,zr]]
+    """
+    Create a container for a single homogenous grid of hydrodynamic data. 
+    """
+    def __init__(self, emm, bbox=None, vels=None, c_light=None): # todo: safe parsing
         self.dims = np.shape(emm)
         self.emm = emm
+        if bbox is not None:
+            self.bbox = bbox # [[xl,xr],[yl,yr],[zl,zr]]
+        else:
+            self.bbox = [[-0.5,0.5],[-0.5,0.5],[-0.5,0.5]]
         self.vels = vels # [vx, vy, vz]
         self.c_light = c_light # speed of light in same units as vels
         self.dx = [(self.bbox[i][1] - self.bbox[i][0]) / self.dims[i] for i in range(3)] # cell sizes
@@ -219,7 +236,9 @@ class MeshBlock:
         return path, dwells
 
 class Ray:
-
+    """
+    Create a ray as defined by a vector origin and normal
+    """
     def __init__(self, origin, normal):
         self.O = origin
         self.N = normal / np.linalg.norm(normal)
@@ -235,7 +254,11 @@ class Ray:
         return self.O + t * self.N
 
 class Screen:
-
+    """
+    Create a Screen, defined by an orientation and position in physical space.
+    Screen objects allow for image rendering, when passed a Mesh to act as a scene.
+    """
+    # TODO: add autoframing routine for sdim
     def __init__(self, R, theta, phi, sdim, pdim, bias=np.array([0,0,1]), tilt=None):
         self.O = R * np.array([np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)])
         self.sdim = sdim
