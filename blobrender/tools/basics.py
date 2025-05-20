@@ -28,6 +28,3 @@ def loader_bar(i,range,modulo): #just for output purposes
         s = str(perc)+"%"
         print(s,end="...",flush=True)
         prev_perc=perc+modulo
-
-        
-
