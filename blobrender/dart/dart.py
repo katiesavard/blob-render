@@ -287,6 +287,36 @@ class Screen:
             if np.any(getattr(self, var) != getattr(other, var)): return False
         return True
 
+    def update_extent(self, mesh):
+
+        corners = []
+        for mb in mesh.meshblocks:
+            corners.append(np.array([mb.bbox[0][0], mb.bbox[1][0], mb.bbox[2][0]])) # lx ly lz
+            corners.append(np.array([mb.bbox[0][0], mb.bbox[1][0], mb.bbox[2][1]])) # lx ly rz
+            corners.append(np.array([mb.bbox[0][0], mb.bbox[1][1], mb.bbox[2][0]])) # lx ry lz
+            corners.append(np.array([mb.bbox[0][1], mb.bbox[1][0], mb.bbox[2][0]])) # rx ly lz
+            corners.append(np.array([mb.bbox[0][0], mb.bbox[1][1], mb.bbox[2][1]])) # lx ry rz
+            corners.append(np.array([mb.bbox[0][1], mb.bbox[1][0], mb.bbox[2][1]])) # rx ly rz
+            corners.append(np.array([mb.bbox[0][1], mb.bbox[1][1], mb.bbox[2][0]])) # rx ry lz
+            corners.append(np.array([mb.bbox[0][1], mb.bbox[1][1], mb.bbox[2][1]])) # rz ry rz
+
+        dY = 0
+        dX = 0
+        for corner in corners:
+            dX_c = np.abs(np.dot((corner - self.O), self.Xhat))
+            dY_c = np.abs(np.dot((corner - self.O), self.Yhat))
+            dX = np.max([dX, dX_c])
+            dY = np.max([dY, dY_c])
+
+        self.sdim = [2 * dX, 2 * dY]
+        self.UL = self.O - 0.5 * self.sdim[0] * self.Xhat + 0.5 * self.sdim[1] * self.Yhat
+        short_res = np.min(self.pdim)
+        if dX < dY:
+            self.pdim = [int(short_res), int(short_res * dY/dX)]
+        else:
+            self.pdim = [int(short_res * dX/dY), int(short_res)]
+        self.img = np.zeros(shape=(self.pdim[1], self.pdim[0]))
+
     def rotate_about(self, v, k, theta):
         """
         brief implementation of Rodrigues' rotation formula to allow for screen tilt
