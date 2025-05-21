@@ -66,9 +66,9 @@ def find_limits(v,x1,x2,buffer_size,minimum_size):
 
     return stop_index_top, stop_index_bottom, stop_index_side
     
-def find_limits_com(stop_index_side,minimum_size,centre,res):
-    stop_index_bottom = (int(centre)*res-int(minimum_size/2))
-    stop_index_top = int(centre)*res+int(minimum_size/2)
+def find_limits_com(stop_index_side,minimum_size,centre,yres):
+    stop_index_bottom = (int(centre)/yres - int(minimum_size/2))
+    stop_index_top = int(centre)/yres + int(minimum_size/2)
     stop_index_bottom
     return stop_index_top, stop_index_bottom, stop_index_side
 
@@ -112,19 +112,8 @@ def ordered_cartesian_grid(ax1,ax2,thetas,z_cart):
         
     return z_ordered
 
-
-
-
-def main():
-
-    ###########   input arguments    ###############
-
-    """
-    You can input arguments on the command line OR just use default to the ones in default.framelum.yaml
-    The default values are set in the YAML file, which is loaded at the beginning of the script.
-    """
-    # Load defaults from YAML
-    with open('default_framelum.yaml', 'r') as f:
+def get_arguments(yaml_file):
+    with open(yaml_file, 'r') as f:
         defaults = yaml.safe_load(f)
 
     ###########   definitions    ###############
@@ -142,18 +131,32 @@ def main():
     parser.add_argument('--eta', type=float, default=defaults['eta'], help='Equipartition factor')
     parser.add_argument('--dtype', type=str, default=defaults['dtype'], help='PLUTO output data type (flt,dbl,hdf5)')
     parser.add_argument('--load_interp', action='store_true', default=defaults['load_interp'], help='Set this flag to load interpolation (default: False)')
+    parser.add_argument('--y_resolution', type=float, default=defaults['y_resolution'], help='Number of pixels per unit length L_sim in y direction')
 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+def main():
+
+    ###########   input arguments    ###############
+
+    """
+    You can input arguments on the command line OR just use default to the ones in default.framelum.yaml
+    The default values are set in the YAML file, which is loaded at the beginning of the script.
+    """
+    # Load defaults from YAML
+    args = get_arguments('default_framelum.yaml')
+
     # Unpack arguments
+
     system_name = args.system_name
     image_timestep = args.image_timestep
     kappa = args.kappa
     theta = args.theta
-    gamma = args.gamma
     distance_in_pc = args.distance_in_pc
     alpha = args.alpha
     P_sim = args.P_sim
     L_sim = args.L_sim
+    yres = args.y_resolution
     nu_observe = args.nu_observe
     eta = args.eta
     dtype = args.dtype
@@ -197,8 +200,7 @@ def main():
     centre = d_vals[image_timestep]
     stop_index_side = 650
     minimum_size = 1300
-    res = 6
-    stop_index_top, stop_index_bottom, stop_index_side = find_limits_com(stop_index_side,minimum_size,centre,res)
+    stop_index_top, stop_index_bottom, stop_index_side = find_limits_com(stop_index_side,minimum_size,centre,yres)
 
     em = (v[:stop_index_side].T[stop_index_bottom:stop_index_top]).T #psuedo emissivity, 2D array 
     ax1 = x1[:stop_index_side]
