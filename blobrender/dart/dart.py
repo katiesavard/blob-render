@@ -287,6 +287,36 @@ class Screen:
             if np.any(getattr(self, var) != getattr(other, var)): return False
         return True
 
+    def update_extent(self, mesh):
+
+        corners = []
+        for mb in mesh.meshblocks:
+            corners.append(np.array([mb.bbox[0][0], mb.bbox[1][0], mb.bbox[2][0]])) # lx ly lz
+            corners.append(np.array([mb.bbox[0][0], mb.bbox[1][0], mb.bbox[2][1]])) # lx ly rz
+            corners.append(np.array([mb.bbox[0][0], mb.bbox[1][1], mb.bbox[2][0]])) # lx ry lz
+            corners.append(np.array([mb.bbox[0][1], mb.bbox[1][0], mb.bbox[2][0]])) # rx ly lz
+            corners.append(np.array([mb.bbox[0][0], mb.bbox[1][1], mb.bbox[2][1]])) # lx ry rz
+            corners.append(np.array([mb.bbox[0][1], mb.bbox[1][0], mb.bbox[2][1]])) # rx ly rz
+            corners.append(np.array([mb.bbox[0][1], mb.bbox[1][1], mb.bbox[2][0]])) # rx ry lz
+            corners.append(np.array([mb.bbox[0][1], mb.bbox[1][1], mb.bbox[2][1]])) # rz ry rz
+
+        dY = 0
+        dX = 0
+        for corner in corners:
+            dX_c = np.abs(np.dot((corner - self.O), self.Xhat))
+            dY_c = np.abs(np.dot((corner - self.O), self.Yhat))
+            dX = np.max([dX, dX_c])
+            dY = np.max([dY, dY_c])
+
+        self.sdim = [2 * dX, 2 * dY]
+        self.UL = self.O - 0.5 * self.sdim[0] * self.Xhat + 0.5 * self.sdim[1] * self.Yhat
+        short_res = np.min(self.pdim)
+        if dX < dY:
+            self.pdim = [int(short_res), int(short_res * dY/dX)]
+        else:
+            self.pdim = [int(short_res * dX/dY), int(short_res)]
+        self.img = np.zeros(shape=(self.pdim[1], self.pdim[0]))
+
     def rotate_about(self, v, k, theta):
         """
         brief implementation of Rodrigues' rotation formula to allow for screen tilt
@@ -330,7 +360,7 @@ class Screen:
             pixel_value += np.sum(weighted_emm)
         return pixel_value
 
-    def render(self, mesh, verbose=False, auto_boost=False, use_bake=False, bake_float_type=np.float32, bake_int_type=np.int16, report_count=10, rebake=False):
+    def render(self, mesh, verbose=False, auto_boost=False, use_bake=False, bake_float_type=np.float32, bake_int_type=np.int16, report_count=10, rebake=False, progress=None, root=None):
         """
         populate an image using rays cast into a scene
         :param mesh: Mesh containing scene data
@@ -409,7 +439,14 @@ class Screen:
                 self.img[*index_pair] = pixel_value
                 if verbose and pixel_num % coarse == 0:
                     print("pixel {0}/{1} drawn, render {2}% complete".format(pixel_num, num_pixels, round(pixel_num/num_pixels * 100,1)))
+                    if progress is not None and root is not None:
+                        completion = pixel_num/num_pixels * 100
+                        progress.set(completion)
+                        root.update()
             if verbose: print("render finished, 100% complete")
+            if progress is not None and root is not None:
+                progress.set(99.9)
+                root.update()
 
         if verbose:
             sum_end = time.perf_counter_ns()
