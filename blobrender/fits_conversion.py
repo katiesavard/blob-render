@@ -1,46 +1,62 @@
 import sys
-import tools
 import numpy as np
 from astropy.io import fits
+import os
+import yaml
+import argparse
 
-def print_if(text,verbose):
-    if verbose: print(text)
+from .config import PLOTS
+from . import tools
 
 
-def deres_array_check(image,verbose):
+def deres_array_check(image,verbose,output_string):
+    """
+    Check if the image needs to be deresolutioned. (blobrender requires square pixels)
+    It checks the resolution of the image in both x and y directions, and if they are not equal,
+    it will remove every x rows or columns from the image to make them equal.
+
+    Args:
+        image (array): image array
+        verbose (bool): if True, print to screen
+        output_string (string): logging string
+
+    Returns:
+        image (array): adjusted array
+        output_string (string): logging string
+    """
     #check if needs a deres
     column_resolution = image[1][5]-image[1][4]
     row_resolution = image[5][1]-image[4][1]
     if row_resolution==column_resolution:
-        print_if('square elements, no need to de-res',verbose)
+        output = print_and_save('square elements, no need to de-res',output_string,verbose)
     else:
         if row_resolution>column_resolution:
-            print_if('deres row',verbose)
+            output = print_and_save('deres row',output_string,verbose)
             resolution_difference = row_resolution/column_resolution
             image = np.array(deres_array(image,resolution_difference),axis='row')
-            print_if('New shape: '+str(np.shape(image)),verbose)
+            output = print_and_save('New shape: '+str(np.shape(image)),output_string,verbose)
         else:
-            print_if('deres column',verbose)
+            output = print_and_save('deres column',output_string,verbose)
             resolution_difference = column_resolution/row_resolution
             image = np.array(deres_array(image,resolution_difference),axis='column')
-            print_if('New shape: '+str(np.shape(image)),verbose)
-    return image
+            output = print_and_save('New shape: '+str(np.shape(image)),output_string,verbose)
+    return image, output
 
-def even_shape_check(image,verbose):
+def even_shape_check(image,verbose,output_string):
     row_len = len(image[0])
     column_len = len(image.T[0])
     even = True
     if row_len%2==1:
         even=False
-        print_if('adding another column',verbose)
+        output = print_and_save('adding another column',output_string,verbose)
         image = adjust(image,axis='column')
     if column_len%2==1:
         even=False
-        print_if('adding another row',verbose)
+        output = print_and_save('adding another row',output_string,verbose)
         image = adjust(image,axis='row') 
     if even:
-        print_if("image has even sides, no need to adjust",verbose)
-    return image
+        output = print_and_save("image has even sides, no need to adjust",output_string,verbose)
+    return image, output
 
 def adjust(image_array,axis='row'): 
     #adds on an extra row
@@ -68,56 +84,75 @@ def deres_array(image_array,res,axis='row'):
 
     return new_lum_array
 
-def m_to_arcseconds(m,distance_in_pc):
-    acs = (m*100)/(1.496*10**(13))*(1/distance_in_pc)
-    return acs
-
-def unit_print(D,L_sim,image,distance_in_pc,outstring):
+def unit_print(xres,yres,L_sim,distance_in_pc,outstring):
     #now check what the resolution size is in real units for wsclean:
-    ax1_check = D.x1[:len(image[0])]
-    ax2_check = D.x2[:len(image.T[0])]
-    x = m_to_arcseconds(ax1_check*L_sim,distance_in_pc)
-    y = m_to_arcseconds(ax2_check*L_sim,distance_in_pc)
+    x = tools.m_to_arcseconds(L_sim*xres,distance_in_pc)
+    y = tools.m_to_arcseconds(L_sim*yres,distance_in_pc)
 
-    outstring = print_and_save('x-direction res: {:.4f} arcseconds'.format(x[2]-x[1]),outstring)
-    outstring = print_and_save('y-direction res: {:.4f} arcseconds'.format(y[2]-y[1]),outstring)
+    outstring = print_and_save('x-direction res: {:.4f} arcseconds'.format(x),outstring)
+    outstring = print_and_save('y-direction res: {:.4f} arcseconds'.format(y),outstring)
     return outstring
 
 def print_and_save(string,output,verbose):
-    print_if(string,verbose)
+    if verbose: print(string)
     output+=string+'\n'
     return output
+
+def get_arguments(yaml_file):
+    with open(yaml_file, 'r') as f:
+        defaults = yaml.safe_load(f)
+    parser = argparse.ArgumentParser(description="Converting a simulation data to a fits file")
+    parser.add_argument('--system_name', type=str, default=defaults['system_name'], help='PLUTO output folder name')
+    parser.add_argument('--image_timestep', type=int, default=defaults['image_timestep'], help='Timestep to analyse')
+    parser.add_argument('--nu_observe', type=float, default=defaults['nu_observe'], help='Observing frequency (Hz)')
+    parser.add_argument('--L_sim', type=float, default=defaults['L_sim'], help='PLUTO units: length (m)')
+    parser.add_argument('--distance_in_pc', type=float, default=defaults['distance_in_pc'], help='Distance in parsecs')
+    parser.add_argument('--x_resolution', type=float, default=defaults['x_resolution'], help='Number of pixels per unit length L_sim in x direction')
+    parser.add_argument('--y_resolution', type=float, default=defaults['y_resolution'], help='Number of pixels per unit length L_sim in y direction')
+
+    return parser.parse_args()
 
 def main():
     ##############       defining variables       ############################
 
-    image_timestep = 150
-    nu_observe = (1.28* 1e9) #1.28 GHz (Bright2020)
-    L_sim = 1*10**13 #m
-    distance_in_pc = 2960
-    dtype = 'flt'
-    verbose = True
+     # Load defaults from YAML
+    yaml_file = 'default_framelum.yaml'
+
+    args = get_arguments(yaml_file)
+
+    # Unpack arguments
+    system_name = args.system_name
+    image_timestep = args.image_timestep
+    nu_observe = args.nu_observe
+    L_sim = args.L_sim
+    distance_in_pc = args.distance_in_pc
+    xres = args.x_resolution
+    yres = args.y_resolution
+
+
+    verbose = True #prints to screen as well as to file
 
     ##############       setup       ############################
     #filenames
-    system_name = 'ri0.001_rb0.02_lz2'
-    data_dir = '/pluto_playtime/data_storage/'+system_name+'/' #set up working directory where data is stored
-    results_folder = '/Users/savard/PLUTO/pluto_playtime/plotting_analysis/sim_results/{}'.format(system_name)
+    results_folder = os.path.join(PLOTS, system_name)
+
     ez_filename = 'pixel_lum_'+system_name+'_'+str(image_timestep)+'_'+str(nu_observe/1e9)+'GHz'
-    output_string = ''
+    output_string = '' #logging string
 
     #user checks
     output_string = print_and_save(" Image timestep = "+str(image_timestep)+"\n System = "+system_name,output_string)
-    inp = input("Continue with current setup? (y/n) : ")
-    if inp=='y':
-        print("")
-    else:
-        return
+
+    if verbose:
+        inp = input("Continue with current setup? (y/n) : ")
+        if inp=='y':
+            print("")
+        else:
+            return
 
 
 
     #load in data
-    D = tools.pyplutplot.load_data_obj(data_dir,image_timestep,data_type=dtype)
+
     image_array = tools.pyplutplot.load_list(results_folder,ez_filename)
     image_array_flip = np.concatenate((np.flip(image_array,axis=1),np.array(image_array)),axis=1)
 
@@ -126,10 +161,10 @@ def main():
 
 
     #deres if needs
-    image_array = deres_array_check(image_array_flip,verbose)
+    image_array, output_string = deres_array_check(image_array_flip,verbose,output_string)
 
     #make even if needs
-    image_array = even_shape_check(image_array,verbose)
+    image_array, output_string = even_shape_check(image_array,verbose,output_string)
 
     output_string = print_and_save('Array shape after adjustments: '+str(np.shape(image_array)),output_string,verbose) #input to wsclean
 
@@ -144,8 +179,7 @@ def main():
     hdu.writeto(save_to,overwrite=True)
 
     #now check what the resolution size is in real units for wsclean:
-    
-    output_string = unit_print(D,L_sim,image_array,distance_in_pc, output_string) #input to wsclean
+    output_string = unit_print(xres,yres,L_sim,distance_in_pc, output_string) #input to wsclean
 
 
     ##################       make an output file       ############################
