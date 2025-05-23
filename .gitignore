@@ -178,7 +178,7 @@ cython_debug/
 
 ### random local things
 *.ms
-plots/
+plots/*
 sim_data/*.npy
 simdata/*.txt
 run_predict.sh
