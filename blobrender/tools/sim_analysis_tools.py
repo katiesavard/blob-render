@@ -8,7 +8,7 @@ from . import basics as b
 
 
 
-def load_data_obj(wdir_in_PLUTO, num=-1, data_type='dbl'):
+def load_data_obj(ddir, num=-1, data_type='dbl'):
     """
     Function to load a .dbl file into an object ad a corresponding image
 
@@ -27,15 +27,14 @@ def load_data_obj(wdir_in_PLUTO, num=-1, data_type='dbl'):
         pyPLUTO image object made from Data object 
 
     """
-    plutodir = os.environ['PLUTO_DIR']
-    wdir = plutodir+wdir_in_PLUTO
+    data_dir = ddir+'/'
     if num==-1:
-        nlinf = pypl.nlast_info(w_dir=wdir)
+        nlinf = pypl.nlast_info(w_dir=data_dir)
         print("data type: "+data_type)
-        D = pp.pload(nlinf['nlast'],w_dir=wdir,datatype=data_type) # Loading the data into a pload object D.
+        D = pp.pload(nlinf['nlast'],w_dir=data_dir,datatype=data_type) # Loading the data into a pload object D.
     else: 
         print("data type: "+data_type)
-        D = pp.pload(num,w_dir=wdir,datatype=data_type) # Loading the data into a pload object D.
+        D = pp.pload(num,w_dir=data_dir,datatype=data_type) # Loading the data into a pload object D.
     return D
 
 def get_max_step(local_wdir):
@@ -87,8 +86,8 @@ def interpolate_cyl_to_cart(x_cart,y_cart,z_ordered,ll,grid_x,grid_y,grid_size,s
         print("loading")
         interp_clean = b.load_list(results_folder,'interpolated_frame_'+system_name+'_'+str(image_timestep))
         integrated_frames = b.load_list(results_folder,'integrated_frame_'+system_name+'_'+str(image_timestep))
-        interps = []
     else:
+        interps = []
         iter_num = len(z_ordered)
         for i in range(iter_num):
             b.loader_bar(i,iter_num,5)
