@@ -5,8 +5,9 @@ import os
 import yaml
 import argparse
 
-from .config import PLOTS
+from .config import PLOTS, CONFIGS, SIM_DAT
 from . import tools
+from blobrender.help_strings import HELP_DICT
 
 
 def deres_array_check(image,verbose,output_string):
@@ -84,41 +85,32 @@ def deres_array(image_array,res,axis='row'):
 
     return new_lum_array
 
-def unit_print(xres,yres,L_sim,distance_in_pc,outstring):
+def unit_print(xres,yres,L_sim,distance_in_pc,outstring,verbose):
     #now check what the resolution size is in real units for wsclean:
     x = tools.m_to_arcseconds(L_sim*xres,distance_in_pc)
     y = tools.m_to_arcseconds(L_sim*yres,distance_in_pc)
 
-    outstring = print_and_save('x-direction res: {:.4f} arcseconds'.format(x),outstring)
-    outstring = print_and_save('y-direction res: {:.4f} arcseconds'.format(y),outstring)
-    return outstring
+    outstring = print_and_save('x-direction res: {:.4f} arcseconds'.format(x),outstring,verbose)
+    outstring = print_and_save('y-direction res: {:.4f} arcseconds'.format(y),outstring,verbose)
+    return outstring, x
 
 def print_and_save(string,output,verbose):
     if verbose: print(string)
     output+=string+'\n'
     return output
 
-def get_arguments(yaml_file):
-    with open(yaml_file, 'r') as f:
-        defaults = yaml.safe_load(f)
-    parser = argparse.ArgumentParser(description="Converting a simulation data to a fits file")
-    parser.add_argument('--system_name', type=str, default=defaults['system_name'], help='PLUTO output folder name')
-    parser.add_argument('--image_timestep', type=int, default=defaults['image_timestep'], help='Timestep to analyse')
-    parser.add_argument('--nu_observe', type=float, default=defaults['nu_observe'], help='Observing frequency (Hz)')
-    parser.add_argument('--L_sim', type=float, default=defaults['L_sim'], help='PLUTO units: length (m)')
-    parser.add_argument('--distance_in_pc', type=float, default=defaults['distance_in_pc'], help='Distance in parsecs')
-    parser.add_argument('--x_resolution', type=float, default=defaults['x_resolution'], help='Number of pixels per unit length L_sim in x direction')
-    parser.add_argument('--y_resolution', type=float, default=defaults['y_resolution'], help='Number of pixels per unit length L_sim in y direction')
-
-    return parser.parse_args()
 
 def main():
     ##############       defining variables       ############################
 
-     # Load defaults from YAML
-    yaml_file = 'default_framelum.yaml'
+    verbose = True #prints to screen as well as to file
+    update_yaml = True #update the yaml file with the new fits name
 
-    args = get_arguments(yaml_file)
+     # Load defaults from YAML
+
+    yaml_file = os.path.join(CONFIGS,'default_simulation.yaml')
+    args = tools.get_arguments(yaml_file,HELP_DICT)
+    
 
     # Unpack arguments
     system_name = args.system_name
@@ -126,21 +118,20 @@ def main():
     nu_observe = args.nu_observe
     L_sim = args.L_sim
     distance_in_pc = args.distance_in_pc
-    xres = args.x_resolution
-    yres = args.y_resolution
+    xres = args.xresolution
+    yres = args.yresolution
 
 
-    verbose = True #prints to screen as well as to file
 
     ##############       setup       ############################
     #filenames
-    results_folder = os.path.join(PLOTS, system_name)
-
+    plots_folder = os.path.join(PLOTS, system_name)
+    data_folder = SIM_DAT
     ez_filename = 'pixel_lum_'+system_name+'_'+str(image_timestep)+'_'+str(nu_observe/1e9)+'GHz'
     output_string = '' #logging string
 
     #user checks
-    output_string = print_and_save(" Image timestep = "+str(image_timestep)+"\n System = "+system_name,output_string)
+    output_string = print_and_save(" Image timestep = "+str(image_timestep)+"\n System = "+system_name,output_string,verbose)
 
     if verbose:
         inp = input("Continue with current setup? (y/n) : ")
@@ -153,11 +144,11 @@ def main():
 
     #load in data
 
-    image_array = tools.pyplutplot.load_list(results_folder,ez_filename)
+    image_array = tools.load_list(data_folder,ez_filename)
     image_array_flip = np.concatenate((np.flip(image_array,axis=1),np.array(image_array)),axis=1)
 
     ##############       reshape array       ############################
-    output_string = print_and_save('Array shape: '+str(np.shape(image_array_flip)),output_string)
+    output_string = print_and_save('Array shape: '+str(np.shape(image_array_flip)),output_string,verbose)
 
 
     #deres if needs
@@ -167,24 +158,33 @@ def main():
     image_array, output_string = even_shape_check(image_array,verbose,output_string)
 
     output_string = print_and_save('Array shape after adjustments: '+str(np.shape(image_array)),output_string,verbose) #input to wsclean
-
+    nxpix = image_array.shape[0]
+    nypix = image_array.shape[1]
 
     ##############       save to fits       ############################
     hdu = fits.PrimaryHDU(image_array)
-    fits_name = 'ffile_'+system_name+'_'+str(image_timestep)+'_'+str(nu_observe/1e9)+'GHz'
 
     exta_descriptors=''
-
-    save_to = results_folder+'/'+fits_name+exta_descriptors+'.fits'
+    fits_name = 'fits_'+system_name+'_'+str(image_timestep)+'_'+str(nu_observe/1e9)+'GHz'+exta_descriptors+'.fits'
+    save_to = data_folder+'/'+fits_name
     hdu.writeto(save_to,overwrite=True)
 
-    #now check what the resolution size is in real units for wsclean:
-    output_string = unit_print(xres,yres,L_sim,distance_in_pc, output_string) #input to wsclean
 
+    #now check what the resolution size is in real units for wsclean:
+    output_string, xasec = unit_print(xres,yres,L_sim,distance_in_pc, output_string,verbose) #input to wsclean
+
+    if update_yaml:
+        #update the yaml file with the new fits name
+        yaml_path = os.path.join(CONFIGS,'default_prediction.yaml')
+        tools.update_yaml('fitsfile_name',fits_name,yaml_path)
+        tools.update_yaml('xpix',nxpix,yaml_path)
+        tools.update_yaml('ypix',nypix,yaml_path)
+        tools.update_yaml('scale',round(xasec,6),yaml_path)
+   
 
     ##################       make an output file       ############################
-    output_file = 'fits_info_'+str(image_timestep)+'.txt'
-    f = open(results_folder+'/'+output_file,'w')
+    output_file = 'fits_info_'+system_name+str(image_timestep)+'.txt'
+    f = open(data_folder+'/'+output_file,'w')
     print(output_string)
     f.write(output_string)
     f.close()
