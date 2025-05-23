@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blobrender"
+version = "0.1"
+readme = "README.md"
+urls = { Homepage = "http://github.com/katiesavarc/blob-render"}
+description = "Turn simulations into relaistic radio images"
+authors = [
+    { name="Katie Savard", email="katherine.savard@physics.ox.ac.uk" }
+]
+
+dependencies = [
+    "numpy",
+    "pyyaml",
+    "casatools",
+    "matplotlib",
+    "astropy",
+    "scipy",
+    "pyPLUTO @ git+https://gitlab.mpcdf.mpg.de/sdoetsch/pypluto.git",
+    "pyrap",
+    "argparse"
+]
+
+[project.scripts]
+"blobrender.make_ska_ms" = "blobrender.make_ska_ms:main"
+"blobrender.fits_conversion" = "blobrender.fits_conversion:main"
+"blobrender.predict_fromfits" = "blobrender.predict_fromfits:main"
+"blobrender.resize_fits" = "blobrender.resize_fits:main"
+"blobrender.simulation_luminosity" = "blobrender.simulation_luminosity:main"
+
+[tool.setuptools]
+packages = ["blobrender"]
