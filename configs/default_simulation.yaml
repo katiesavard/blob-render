@@ -1,0 +1,15 @@
+L_sim: 10000000000000.0
+P_sim: 0.0001503
+alpha: -0.507
+distance_in_pc: 2960
+dtype: flt
+eta: 0.75
+gamma: 2.0
+image_timestep: 1
+kappa: 0.1
+load_interp: false
+nu_observe: 1280000000.0
+system_name: maxij1820_simulation
+theta: 62.491498934611414
+xresolution: 0.16666666666666666
+yresolution: 0.16666666666666666

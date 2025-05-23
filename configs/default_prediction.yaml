@@ -1,0 +1,12 @@
+add_noise: true
+fitsfile_name: fits_maxij1820_simulation_1_1.28GHz.fits
+ms_name: my_ska-mid_sim_1.ms
+newDEC: 7.1835107
+newRA: -84.9099229
+rephase_real: false
+reposition_model: false
+scale: 0.003764
+telescopename: eMERLIN
+xpix: 1300
+ypix: 1300
+image_timestep: 1

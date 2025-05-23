@@ -1,0 +1,10 @@
+telescopename: SKA-Mid
+new_ms_name: my_ska-mid_sim_1.ms
+source_ra: '12h00m00.0s'
+source_dec: '-40d00m0.0s'
+f0: '856MHz' # MHz lowest band frequency
+df: '107MHz' # MHz channel width
+nchan: 8 # number of channels
+t_int: '120s' # in seconds: Note that this is the correlator dump time, not total track length
+start_ha: '-0.2h' # Start and end times are relative to transit
+end_ha: '+0.2h' #hourangle
