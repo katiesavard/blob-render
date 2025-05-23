@@ -174,3 +174,12 @@ cython_debug/
 .pypirc
 
 .DS_Store
+
+
+### random local things
+*.ms
+plots/
+sim_data/*.npy
+simdata/*.txt
+run_predict.sh
+
