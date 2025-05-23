@@ -1,8 +1,11 @@
-import sys
 import subprocess
 import os
 import stat
-sys.path.append("../")
+from . import tools
+
+from .config import CONFIGS, CONTAINERS
+from blobrender.help_strings import HELP_DICT
+
 
 #assumes you have fitsfile and split-MS in current directory 
 
@@ -12,40 +15,44 @@ sys.path.append("../")
 
 
 def main():
-	args = sys.argv[1:]
 
-	default_fitsfile_name = 'ffile_ri0.001_rb0.02_k0.1_lz25_6hhres_newprs2_0_1.7GHz.fits'
-	default_split_ms_name = 'split_data_1820.ms'
-	xpix = '1300' #from fits_conversion.py
-	ypix = '1300' #from fits_conversion.py
-	scale = '0.0038' #arcseconds 
-	timestep = '0'
-	reposition_model = False
-	rephase_real = False
-	add_noise = False
-	newRA = '-84.9099229'
-	newDEC = '7.1835107'
+	
+	# Load defaults from YAML
 
-	if len(args)==2:
-		fitsfile_name = args[0] 
-		split_ms_name = args[1]
-	else:
-		default = input('need 2 args: use default arguments? '+'\n'+'default arguments are: '
-		+'\n'+default_fitsfile_name+'\n'+'MS to split: '+str(default_split_ms_name)+'\n'+
-		'Reposition: '+str(reposition_model)+' '+newRA+' '+newDEC+'\n'+'(y/n)')
-	if default=='y':
-		fitsfile_name = default_fitsfile_name
-		split_ms_name = default_split_ms_name
-	else:
-		return
+	yaml_file = os.path.join(CONFIGS,'default_prediction.yaml')
+	args = tools.get_arguments(yaml_file,HELP_DICT)
+
+	# Unpack arguments
+	reposition_model = args.reposition_model
+	rephase_real = args.rephase_real
+	add_noise = args.add_noise
+	newRA = args.newRA
+	newDEC = args.newDEC
+	xpix = args.xpix
+	ypix = args.ypix
+	scale = args.scale
+	split_ms_name = args.ms_name
+	fitsfile_name = args.fitsfile_name
+	telescopename = args.telescopename
+	timestep = str(args.image_timestep)
+
+
+	#some specific requirements that I need to figure out how they depend on the telescope 
+	column ='CORRECTED_DATA'
+	reorder='-reorder' #blank for no reorder
+	field = '' #blank for split dataset 
+	imscale='5mas' #imaging scale for cleaning (some fraction of the beam)
+	mem=str(50) #memory for wsclean
+
+
 	bash_runfile = 'run_predict.sh'
-	predict_file_name = 'brender_meerkat_inpmodel_'+timestep
-	image_file_name = 'brender_meerkat_modimage_'+timestep
-	imagesum_file_name = 'brender_meerkat_sumimage_'+timestep
+	predict_file_name = 'brender_'+telescopename+'_inpmodel_'+timestep
+	image_file_name = 'brender_'+telescopename+'_modimage_'+timestep
+	imagesum_file_name = 'brender_'+telescopename+'_sumimage_'+timestep
 
 	f = open(bash_runfile,'w')
 	f.write('#!/usr/bin/env bash\n')
-	singularity = 'singularity exec /home/ianh/containers/oxkat-0.41.sif '
+	singularity = 'singularity exec '+CONTAINERS+'/oxkat-0.41.sif '
 	
 	#rephase real visibilities to where you want to add the sim data to
 	if rephase_real:
@@ -54,7 +61,7 @@ def main():
 	
 	#clean with 0 iterations: create fits file images with dirty visibilities but the right dimensions
 	f.write('printf "creating model\n" \n')
-	f.write(singularity+'wsclean -size '+xpix+' '+ypix+' -scale '+scale+'asec -niter 0 -channels-out 1 -reorder -name '+predict_file_name+' -data-column CORRECTED_DATA -use-wgridder -mem 50 '+split_ms_name+'\n')
+	f.write(singularity+'wsclean -size '+xpix+' '+ypix+' -scale '+scale+'asec -niter 0 -channels-out 1 '+reorder+' -name '+predict_file_name+' -data-column '+column+' -use-wgridder -mem '+mem+' '+split_ms_name+'\n')
 	
 	#write in the correct filenames into populatefits.py
 	f.write('sed -i "s/model_fits.*fits\'/model_fits = \''+fitsfile_name+'\'/g" populatefits.py\n')
@@ -62,7 +69,7 @@ def main():
 	f.write('sed -i "s/op_fits.*fits\'/op_fits = \''+predict_file_name+'-model.fits\'/g" populatefits.py\n')
 
 	#bulldoze the dirty fits files with the data from simulation
-	f.write("python3 populatefits.py\n")
+	f.write("python3 tools/populatefits.py\n")
 	
 	#change the RA and DEC of the model fits files to the desired position
 	if reposition_model:
@@ -73,11 +80,11 @@ def main():
 	
 	#predict model visibilities
 	f.write('printf "predicting model visibilities\n" \n')
-	f.write(singularity+'wsclean -predict -mem 50 -size '+xpix+' '+ypix+' -scale '+scale+'asec -channels-out 1 -reorder -name '+predict_file_name+' -use-wgridder '+split_ms_name+'/\n')
+	f.write(singularity+'wsclean -predict -mem '+mem+' -size '+xpix+' '+ypix+' -scale '+scale+'asec -channels-out 1 '+reorder+' -name '+predict_file_name+' -use-wgridder '+split_ms_name+'/\n')
 		
 	#image the model visibilities
 	f.write('printf "imaging model data with no noise\n" \n')
-	f.write(singularity+'wsclean -mem 80 -mgain 0.9 -gain 0.15 -size 1024 1024 -scale 1.1asec -niter 1000 -channels-out 1 -no-update-model-required -name '+image_file_name+' -data-column MODEL_DATA -use-wgridder '+split_ms_name+'\n')
+	f.write(singularity+'wsclean -mem 80 -mgain 0.9 -gain 0.15 -size 1024 1024 -scale '+imscale+'asec -niter 1000 -channels-out 1 -no-update-model-required '+reorder+' -name '+image_file_name+' -data-column MODEL_DATA '+field+' -use-wgridder '+split_ms_name+'\n')
 	
 	#add together model and real data
 	if add_noise:
@@ -103,6 +110,7 @@ def main():
 	os.chmod(bash_runfile,stat.S_IRWXU)
 	#run bash file 
 	subprocess.call("./"+bash_runfile)
+
 
 if __name__ == "__main__":
     main()
