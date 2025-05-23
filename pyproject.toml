@@ -21,7 +21,8 @@ dependencies = [
     "scipy",
     "pyPLUTO @ git+https://gitlab.mpcdf.mpg.de/sdoetsch/pypluto.git",
     "pyrap",
-    "argparse"
+    "argparse",
+    "pillow"
 ]
 
 [project.scripts]
@@ -30,6 +31,7 @@ dependencies = [
 "blobrender.predict_fromfits" = "blobrender.predict_fromfits:main"
 "blobrender.resize_fits" = "blobrender.resize_fits:main"
 "blobrender.simulation_luminosity" = "blobrender.simulation_luminosity:main"
+"blobrender.image_to_fits" = "blobrender.image_to_fits:main"
 
 [tool.setuptools]
 packages = ["blobrender"]
