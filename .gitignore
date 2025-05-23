@@ -183,3 +183,4 @@ sim_data/*.npy
 simdata/*.txt
 run_predict.sh
 
+sim_data/maxij1820_simulation/maxij1820data.zip
