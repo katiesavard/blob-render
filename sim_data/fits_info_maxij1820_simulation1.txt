@@ -1,0 +1,8 @@
+ Image timestep = 1
+ System = maxij1820_simulation
+Array shape: (1300, 1300)
+square elements, no need to de-res
+image has even sides, no need to adjust
+Array shape after adjustments: (1300, 1300)
+x-direction res: 0.0038 arcseconds
+y-direction res: 0.0038 arcseconds
