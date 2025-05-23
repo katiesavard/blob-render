@@ -4,6 +4,7 @@ from astropy.io import fits
 import os
 import yaml
 import argparse
+from PIL import Image
 
 from .config import PLOTS, CONFIGS, SIM_DAT
 from . import tools
@@ -32,15 +33,15 @@ def deres_array_check(image,verbose,output_string):
         output = print_and_save('square elements, no need to de-res',output_string,verbose)
     else:
         if row_resolution>column_resolution:
-            output = print_and_save('deres row',output_string,verbose)
+            output_temp = print_and_save('deres row',output_string,verbose)
             resolution_difference = row_resolution/column_resolution
-            image = np.array(deres_array(image,resolution_difference),axis='row')
-            output = print_and_save('New shape: '+str(np.shape(image)),output_string,verbose)
+            image = np.array(deres_array(image,resolution_difference,axis='row'))
+            output = print_and_save('New shape: '+str(np.shape(image)),output_temp,verbose)
         else:
-            output = print_and_save('deres column',output_string,verbose)
+            output_temp = print_and_save('deres column',output_string,verbose)
             resolution_difference = column_resolution/row_resolution
-            image = np.array(deres_array(image,resolution_difference),axis='column')
-            output = print_and_save('New shape: '+str(np.shape(image)),output_string,verbose)
+            image = np.array(deres_array(image,resolution_difference,axis='column'))
+            output = print_and_save('New shape: '+str(np.shape(image)),output_temp,verbose)
     return image, output
 
 def even_shape_check(image,verbose,output_string):
@@ -99,12 +100,23 @@ def print_and_save(string,output,verbose):
     output+=string+'\n'
     return output
 
-
+def load_image_or_npy(data_folder,filename):
+    filepath = os.path.join(data_folder,filename)
+    ext = os.path.splitext(filepath)[1].lower()
+    if ext == ".npy":
+        image_array = tools.load_list(data_folder,filename)
+        return image_array
+    else:
+        image_array = np.flipud(tools.rgb2gray(np.array(Image.open(filepath)))) 
+        return image_array
+    
 def main():
     ##############       defining variables       ############################
 
     verbose = True #prints to screen as well as to file
     update_yaml = True #update the yaml file with the new fits name
+    reflect_image = False
+    adjust_image = False
 
      # Load defaults from YAML
 
@@ -120,14 +132,15 @@ def main():
     distance_in_pc = args.distance_in_pc
     xres = args.xresolution
     yres = args.yresolution
+    image_filename = args.image_filename
 
-
+    
+    
 
     ##############       setup       ############################
     #filenames
-    plots_folder = os.path.join(PLOTS, system_name)
+    
     data_folder = SIM_DAT
-    ez_filename = 'pixel_lum_'+system_name+'_'+str(image_timestep)+'_'+str(nu_observe/1e9)+'GHz'
     output_string = '' #logging string
 
     #user checks
@@ -143,19 +156,22 @@ def main():
 
 
     #load in data
+    image_array = load_image_or_npy(SIM_DAT,image_filename)
 
-    image_array = tools.load_list(data_folder,ez_filename)
-    image_array_flip = np.concatenate((np.flip(image_array,axis=1),np.array(image_array)),axis=1)
+    if reflect_image:
+        image_array_flip = np.concatenate((np.flip(image_array,axis=1),np.array(image_array)),axis=1)
+    else:
+        image_array_flip = image_array 
 
     ##############       reshape array       ############################
     output_string = print_and_save('Array shape: '+str(np.shape(image_array_flip)),output_string,verbose)
 
+    if adjust_image:
+        #deres if needs
+        image_array, output_string = deres_array_check(image_array_flip,verbose,output_string)
 
-    #deres if needs
-    image_array, output_string = deres_array_check(image_array_flip,verbose,output_string)
-
-    #make even if needs
-    image_array, output_string = even_shape_check(image_array,verbose,output_string)
+        #make even if needs
+        image_array, output_string = even_shape_check(image_array,verbose,output_string)
 
     output_string = print_and_save('Array shape after adjustments: '+str(np.shape(image_array)),output_string,verbose) #input to wsclean
     nxpix = image_array.shape[0]
