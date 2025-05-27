@@ -23,7 +23,9 @@ dependencies = [
     "scipy",
     "pyPLUTO @ git+https://gitlab.mpcdf.mpg.de/sdoetsch/pypluto.git",
     "pyrap",
-    "pillow"
+    "pillow",
+    "numba",
+    "tkinter"
 ]
 
 [project.scripts]
