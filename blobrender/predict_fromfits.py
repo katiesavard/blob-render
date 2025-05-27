@@ -50,9 +50,10 @@ def main():
 	image_file_name = 'brender_'+telescopename+'_modimage_'+timestep
 	imagesum_file_name = 'brender_'+telescopename+'_sumimage_'+timestep
 
+
 	f = open(bash_runfile,'w')
 	f.write('#!/usr/bin/env bash\n')
-	singularity = 'singularity exec '+CONTAINERS+'/oxkat-0.41.sif '
+	singularity = 'singularity exec --bind $HOME'+CONTAINERS+'/oxkat-0.41.sif '
 	
 	#rephase real visibilities to where you want to add the sim data to
 	if rephase_real:
@@ -64,12 +65,17 @@ def main():
 	f.write(singularity+'wsclean -size '+xpix+' '+ypix+' -scale '+scale+'asec -niter 0 -channels-out 1 '+reorder+' -name '+predict_file_name+' -data-column '+column+' -use-wgridder -mem '+mem+' '+split_ms_name+'\n')
 	
 	#write in the correct filenames into populatefits.py
-	f.write('sed -i "s/model_fits.*fits\'/model_fits = \''+fitsfile_name+'\'/g" populatefits.py\n')
-	f.write('sed -i "s/wsclean_fits.*fits\'/wsclean_fits = \''+predict_file_name+'-image.fits\'/g" populatefits.py\n')
-	f.write('sed -i "s/op_fits.*fits\'/op_fits = \''+predict_file_name+'-model.fits\'/g" populatefits.py\n')
+	#f.write(f'{sed_inplace} \"s/model_fits.*fits\'/model_fits = \''+fitsfile_name+'\'/g" populatefits.py\n')
+	#f.write(f'{sed_inplace} \"s/wsclean_fits.*fits\'/wsclean_fits = \''+predict_file_name+'-image.fits\'/g" populatefits.py\n')
+	#f.write(f'{sed_inplace} \"s/op_fits.*fits\'/op_fits = \''+predict_file_name+'-model.fits\'/g" populatefits.py\n')
 
+	f.write(
+    	f"python3 -m blobrender.tools.populatefits --model_fits '{fitsfile_name}' "
+    	f"--wsclean_fits '{predict_file_name}-image.fits' "
+    	f"--op_fits '{predict_file_name}-model.fits'\n"
+	)
 	#bulldoze the dirty fits files with the data from simulation
-	f.write("python3 tools/populatefits.py\n")
+	#f.write("python3 populatefits.py\n")
 	
 	#change the RA and DEC of the model fits files to the desired position
 	if reposition_model:
