@@ -181,6 +181,8 @@ cython_debug/
 plots/*
 sim_data/*.npy
 sim_data/*.txt
+sim_data/*.jpg
+sim_data/*robfender*
 run_predict.sh
 
 sim_data/maxij1820_simulation/maxij1820data.zip
