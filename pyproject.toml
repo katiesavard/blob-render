@@ -6,11 +6,13 @@ build-backend = "setuptools.build_meta"
 name = "blobrender"
 version = "0.1"
 readme = "README.md"
-urls = { Homepage = "http://github.com/katiesavarc/blob-render"}
-description = "Turn simulations into relaistic radio images"
+description = "Turn simulations into realistic radio images"
 authors = [
     { name="Katie Savard", email="katherine.savard@physics.ox.ac.uk" }
 ]
+
+[project.urls]
+Homepage = "http://github.com/katiesavarc/blob-render"
 
 dependencies = [
     "numpy",
@@ -21,17 +23,15 @@ dependencies = [
     "scipy",
     "pyPLUTO @ git+https://gitlab.mpcdf.mpg.de/sdoetsch/pypluto.git",
     "pyrap",
-    "argparse",
     "pillow"
 ]
 
 [project.scripts]
-"blobrender.make_ska_ms" = "blobrender.make_ska_ms:main"
-"blobrender.fits_conversion" = "blobrender.fits_conversion:main"
-"blobrender.predict_fromfits" = "blobrender.predict_fromfits:main"
-"blobrender.resize_fits" = "blobrender.resize_fits:main"
-"blobrender.simulation_luminosity" = "blobrender.simulation_luminosity:main"
-"blobrender.image_to_fits" = "blobrender.image_to_fits:main"
+"blobrender.make-ms" = "blobrender.make_ska_ms:main"
+"blobrender.fits-conversion" = "blobrender.fits_conversion:main"
+"blobrender.predict" = "blobrender.predict_fromfits:main"
+"blobrender.resize-fits" = "blobrender.resize_fits:main"
+"blobrender.simulation-luminosity" = "blobrender.simulation_luminosity:main"
 
 [tool.setuptools]
 packages = ["blobrender"]
