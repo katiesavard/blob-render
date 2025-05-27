@@ -45,6 +45,16 @@ def main():
     overwrite = True # Remove any existing MS with the same name
     update_yaml = True # Update the YAML file with the new MS name
 
+
+    #mkdir ~/.casa/data at some point if it doesn't exist
+    casa_data_dir = os.path.expanduser("~/.casa/data")
+    if not os.path.exists(casa_data_dir):
+        print(f"Creating {casa_data_dir} and restarting script...")
+        os.makedirs(casa_data_dir, exist_ok=True)
+        # Restart the script
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+
     yaml_file = os.path.join(CONFIGS,'default_MSbuilder.yaml')
     args = tools.get_arguments(yaml_file,HELP_DICT)
     
