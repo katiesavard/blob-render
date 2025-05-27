@@ -11,9 +11,6 @@ authors = [
     { name="Katie Savard", email="katherine.savard@physics.ox.ac.uk" }
 ]
 
-[project.urls]
-Homepage = "http://github.com/katiesavarc/blob-render"
-
 dependencies = [
     "numpy",
     "pyyaml",
@@ -24,9 +21,11 @@ dependencies = [
     "pyPLUTO @ git+https://gitlab.mpcdf.mpg.de/sdoetsch/pypluto.git",
     "pyrap",
     "pillow",
-    "numba",
-    "tkinter"
+    "numba"
 ]
+
+[project.urls]
+Homepage = "http://github.com/katiesavarc/blob-render"
 
 [project.scripts]
 "blobrender.make-ms" = "blobrender.make_ska_ms:main"
