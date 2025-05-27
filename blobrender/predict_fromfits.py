@@ -43,6 +43,8 @@ def main():
 	field = '' #blank for split dataset 
 	imscale='5mas' #imaging scale for cleaning (some fraction of the beam)
 	mem=str(50) #memory for wsclean
+	
+	use_singularity = False
 
 
 	bash_runfile = 'run_predict.sh'
@@ -53,7 +55,10 @@ def main():
 
 	f = open(bash_runfile,'w')
 	f.write('#!/usr/bin/env bash\n')
-	singularity = 'singularity exec --bind $HOME'+CONTAINERS+'/oxkat-0.41.sif '
+	if use_singularity:
+		singularity = 'singularity exec --bind $HOME'+CONTAINERS+'/blobrender-0.1.sif '
+	else:
+		singularity = ''
 	
 	#rephase real visibilities to where you want to add the sim data to
 	if rephase_real:
@@ -90,7 +95,7 @@ def main():
 		
 	#image the model visibilities
 	f.write('printf "imaging model data with no noise\n" \n')
-	f.write(singularity+'wsclean -mem 80 -mgain 0.9 -gain 0.15 -size 1024 1024 -scale '+imscale+'asec -niter 1000 -channels-out 1 -no-update-model-required '+reorder+' -name '+image_file_name+' -data-column MODEL_DATA '+field+' -use-wgridder '+split_ms_name+'\n')
+	f.write(singularity+'wsclean -mem 80 -mgain 0.9 -gain 0.15 -size 1024 1024 -scale '+imscale+' -niter 1000 -channels-out 1 -no-update-model-required '+reorder+' -name '+image_file_name+' -data-column MODEL_DATA '+field+' -use-wgridder '+split_ms_name+'\n')
 	
 	#add together model and real data
 	if add_noise:
