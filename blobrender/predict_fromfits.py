@@ -13,6 +13,25 @@ from blobrender.help_strings import HELP_DICT
 
 #timestep is just for naming conventions 
 
+def singularity_setup(use_remote=True):
+    wsclean_sif = os.path.join(CONTAINERS, "wsclean-1.6.3.sif")
+    if not os.path.exists(wsclean_sif):
+        print(f"Singularity container not found at {wsclean_sif}. Pulling from DockerHub...")
+        os.makedirs(CONTAINERS, exist_ok=True)
+        if use_remote:
+            # Remote build: output file must be in CONTAINERS
+            build_cmd = [
+                "singularity", "build", "--remote", wsclean_sif, "docker://stimela/wsclean:1.6.3"
+            ]
+            subprocess.run(build_cmd, check=True)
+        else:
+            pull_cmd = [
+                "singularity", "pull", f"--dir={CONTAINERS}", "docker://stimela/wsclean:1.6.3"
+            ]
+            subprocess.run(pull_cmd, check=True)
+        print("Singularity container downloaded.")
+    singularity = 'singularity exec --bind $HOME '+wsclean_sif+' '
+    return singularity
 
 def main():
 
@@ -43,8 +62,12 @@ def main():
 	field = '' #blank for split dataset 
 	imscale='5mas' #imaging scale for cleaning (some fraction of the beam)
 	mem=str(50) #memory for wsclean
-	
-	use_singularity = False
+	use_singularity = True
+
+	if use_singularity:
+		singularity = singularity_setup(use_remote=True)
+	else:
+		singularity = ''
 
 
 	bash_runfile = 'run_predict.sh'
@@ -55,10 +78,6 @@ def main():
 
 	f = open(bash_runfile,'w')
 	f.write('#!/usr/bin/env bash\n')
-	if use_singularity:
-		singularity = 'singularity exec --bind $HOME'+CONTAINERS+'/blobrender-0.1.sif '
-	else:
-		singularity = ''
 	
 	#rephase real visibilities to where you want to add the sim data to
 	if rephase_real:
@@ -85,9 +104,9 @@ def main():
 	#change the RA and DEC of the model fits files to the desired position
 	if reposition_model:
 		f.write('printf "changing RA and DEC of model\n" \n')
-		f.write("python3 change_RADEC_fits.py "+predict_file_name+'-model.fits '+newRA+' '+newDEC+'\n')
-		f.write("python3 change_RADEC_fits.py "+predict_file_name+'-image.fits '+newRA+' '+newDEC+'\n')
-		f.write("python3 change_RADEC_fits.py "+predict_file_name+'-dirty.fits '+newRA+' '+newDEC+'\n')
+		f.write("python3 -m blobrender.tools.change_RADEC_fits "+predict_file_name+'-model.fits '+newRA+' '+newDEC+'\n')
+		f.write("python3 -m blobrender.tools.change_RADEC_fits "+predict_file_name+'-image.fits '+newRA+' '+newDEC+'\n')
+		f.write("python3 -m blobrender.tools.change_RADEC_fits "+predict_file_name+'-dirty.fits '+newRA+' '+newDEC+'\n')
 	
 	#predict model visibilities
 	f.write('printf "predicting model visibilities\n" \n')
@@ -100,9 +119,9 @@ def main():
 	#add together model and real data
 	if add_noise:
 		f.write('printf "adding model to real data\n" \n')
-		f.write(singularity+'python3 add_MS_column.py '+split_ms_name+' --colname DATA_MODEL_SUM\n')
-		f.write(singularity+'python3 copy_MS_column.py '+split_ms_name+' --fromcol CORRECTED_DATA --tocol DATA_MODEL_SUM\n')
-		f.write(singularity+'python3 sum_MS_columns.py '+split_ms_name+' --src MODEL_DATA --dest DATA_MODEL_SUM\n')
+		f.write(singularity+'python3 -m blobrender.tools.add_MS_column '+split_ms_name+' --colname DATA_MODEL_SUM\n')
+		f.write(singularity+'python3 -m blobrender.tools.copy_MS_column '+split_ms_name+' --fromcol CORRECTED_DATA --tocol DATA_MODEL_SUM\n')
+		f.write(singularity+'python3 -m blobrender.tools.sum_MS_columns '+split_ms_name+' --src MODEL_DATA --dest DATA_MODEL_SUM\n')
 
 	#rephase the visibilities back to the original phase centre 
 	if rephase_real:
