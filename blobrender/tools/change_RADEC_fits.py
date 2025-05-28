@@ -15,9 +15,12 @@ def update_fits_header(file_path, new_ra, new_dec):
         # Save the changes
         hdul.flush()
 
-# Example usage
-file_path = sys.argv[1] #input filename when calling python script
-new_ra = sys.argv[2]  # New RA value in decimal degrees
-new_dec = sys.argv[3]  # New DEC value in decimal degrees
+def main():
+    file_path = sys.argv[1] #input filename when calling python script
+    new_ra = sys.argv[2]  # New RA value in decimal degrees
+    new_dec = sys.argv[3]  # New DEC value in decimal degrees
 
-update_fits_header(file_path, new_ra, new_dec)
+    update_fits_header(file_path, new_ra, new_dec)
+
+if __name__ == "__main__":
+        main()
