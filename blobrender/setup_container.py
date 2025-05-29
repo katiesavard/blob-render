@@ -14,13 +14,14 @@ def check_singularity_remote_login():
             text=True,
             check=True
         )
-        # Look for a line like: "Cloud SylabsCloud (https://cloud.sylabs.io) [Current]  Authenticated"
-        for line in result.stdout.splitlines():
-            if "SylabsCloud" in line and "Authenticated" in line:
-                return True
-        print("You are not logged in to the Singularity remote builder.")
-        print("Please run: singularity remote login")
-        return False
+        # Look for login confirmation in output
+        output = result.stdout + result.stderr
+        if (
+            "Logged in as:" in output
+            or "Valid authentication token set" in output
+            or "Access Token Verified" in output
+        ):
+            return True
     except Exception as e:
         print("Could not check Singularity remote login status. Please ensure Singularity is installed.")
         print(e)
