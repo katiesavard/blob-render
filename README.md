@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 features
+## 💥features
 
 - 🖼️ convert simulation outputs to fits format
 - 📡 generate measurement sets for existing and future radio telescopes
@@ -38,12 +38,12 @@ pip install .
 
 after installation, the following cli tools are available:
 
-- `blobrender.make-ms` — 📡 generate a measurement set from a specified telescope and observing parameters
-- `blobrender.fits-conversion` — 🖼️ convert simulation outputs to blobrender-ready fits images
-- `blobrender.predict` — 🔮 predict visibilities using given fits file and measurement set
-- `blobrender.resize-fits` — ✂️ resize fits images
-- `blobrender.simulation-luminosity` — 💡 estimate optically thin radio luminosity from simulation data
-- `blobrender.setup-container` — 📦 build or pull docker/singularity containers for workflows
+- `blobrender.make-ms` — generate a measurement set from a specified telescope and observing parameters
+- `blobrender.fits-conversion` — convert simulation outputs to blobrender-ready fits images
+- `blobrender.predict` — predict visibilities using given fits file and measurement set
+- `blobrender.resize-fits` — resize fits images
+- `blobrender.simulation-luminosity` — estimate optically thin radio luminosity from simulation data
+- `blobrender.setup-container` — build or pull docker/singularity containers for workflows
 
 each tool can be run with `--help` for usage information.
 
@@ -61,16 +61,16 @@ blobrender.predict
 
 ---
 
-## 🐳🦠 container support
+## 🐳♾️  container support
 
-blobrender supports running workflows in **docker** 🐳 or **singularity** 🦠 containers for reproducibility.  
+blobrender supports running workflows in **docker** 🐳 or **singularity** ♾️ containers for reproducibility.  
 use `blobrender.setup-container` to build or pull the required containers.
 
 ---
 
 ## 📄 license
 
-mit license
+???? not sure yet honestly
 
 ---
 
@@ -78,6 +78,13 @@ mit license
 
 katie savard  
 katherine.savard@physics.ox.ac.uk
+
+with much help from many others 👨‍💻, to name a few
+
+Ian Heywood
+James Matthews
+Rob Fender
+Andrew Hughes
 
 ---
 
