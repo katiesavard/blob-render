@@ -1,23 +1,23 @@
-# blobrender
+# ✨ blobrender ✨
 
-**blobrender** is a Python package for turning simulations into realistic radio images. It provides tools for manipulating FITS files, generating measurement sets, and simulating telescope observations.
-
----
-
-## Features
-
-- Convert simulation outputs to FITS format
-- Generate measurement sets for existing and future radio telescopes
-- Predict visibilities from FITS images
-- Resize and manipulate FITS files
-- Estimate optically thin radio luminosity of simulations with relativistic beaming
-- Containerized workflows with Docker and Singularity
+**blobrender** is a python package for turning simulations into realistic radio images. it provides tools for manipulating fits files, generating measurement sets, and simulating telescope observations.
 
 ---
 
-## Installation
+## 🚀 features
 
-Clone the repository and install with pip:
+- 🖼️ convert simulation outputs to fits format
+- 📡 generate measurement sets for existing and future radio telescopes
+- 🔮 predict visibilities from fits images
+- ✂️ resize and manipulate fits files
+- 💡 estimate optically thin radio luminosity of simulations with relativistic beaming
+- 📦 containerized workflows with docker and singularity
+
+---
+
+## ⚡ installation
+
+clone the repository and install with pip:
 
 ```sh
 git clone https://github.com/katiesavarc/blob-render.git
@@ -27,60 +27,60 @@ pip install .
 
 ---
 
-## Requirements
+## 🛠️ requirements
 
-- Python 3.8+
-- See `pyproject.toml` for dependencies (numpy, pyyaml, casatools, matplotlib, astropy, scipy, etc.)
-
----
-
-## Command Line Tools
-
-After installation, the following CLI tools are available:
-
-- `blobrender.make-ms` — Generate a measurement set from a specified telescope and observing parameters
-- `blobrender.fits-conversion` — Convert simulation outputs to blobrender-ready FITS images
-- `blobrender.predict` — Predict visibilities using given FITS file and measurement set
-- `blobrender.resize-fits` — Resize FITS images
-- `blobrender.simulation-luminosity` — Estimate optically thin radio luminosity from simulation data
-- `blobrender.setup-container` — Build or pull Docker/Singularity containers for workflows
-
-Each tool can be run with `--help` for usage information.
+- 🐍 python 3.8+
+- 📦 see `pyproject.toml` for dependencies (numpy, pyyaml, casatools, matplotlib, astropy, scipy, etc.)
 
 ---
 
-## Example Usage
+## 🖥️ command line tools
+
+after installation, the following cli tools are available:
+
+- `blobrender.make-ms` — 📡 generate a measurement set from a specified telescope and observing parameters
+- `blobrender.fits-conversion` — 🖼️ convert simulation outputs to blobrender-ready fits images
+- `blobrender.predict` — 🔮 predict visibilities using given fits file and measurement set
+- `blobrender.resize-fits` — ✂️ resize fits images
+- `blobrender.simulation-luminosity` — 💡 estimate optically thin radio luminosity from simulation data
+- `blobrender.setup-container` — 📦 build or pull docker/singularity containers for workflows
+
+each tool can be run with `--help` for usage information.
+
+---
+
+## 💡 example usage
 
 ```sh
 blobrender.simulation-luminosity
 blobrender.fits-conversion 
 blobrender.make-ms 
-blobrender.setup-container --filetype Docker
+blobrender.setup-container --filetype docker
 blobrender.predict 
-
 ```
 
 ---
 
-## Container Support
+## 🐳🦠 container support
 
-blobrender supports running workflows in Docker or Singularity containers for reproducibility. Use `blobrender.setup-container` to build or pull the required containers.
-
----
-
-## License
-
-
+blobrender supports running workflows in **docker** 🐳 or **singularity** 🦠 containers for reproducibility.  
+use `blobrender.setup-container` to build or pull the required containers.
 
 ---
 
-## Author
+## 📄 license
 
-Katie Savard  
+mit license
+
+---
+
+## 👩‍💻 author
+
+katie savard  
 katherine.savard@physics.ox.ac.uk
 
 ---
 
-## Homepage
+## 🌐 homepage
 
 [https://github.com/katiesavarc/blob-render](https://github.com/katiesavarc/blob-render)
