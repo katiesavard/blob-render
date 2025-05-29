@@ -1,4 +1,6 @@
 add_noise: true
+container_name: stimela/wsclean:1.6.3
+container_type: Docker
 fitsfile_name: fits_robfender_1_1.28GHz.fits
 image_timestep: 1
 ms_name: my_ska-mid_sim_1.ms
