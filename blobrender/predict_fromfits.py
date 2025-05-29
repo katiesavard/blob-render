@@ -3,7 +3,7 @@ import os
 import stat
 from . import tools
 
-from .config import CONFIGS, CONTAINERS
+from .paths import CONFIGS, CONTAINERS, RESULTS
 from blobrender.help_strings import HELP_DICT
 
 
@@ -54,6 +54,8 @@ def main():
 	fitsfile_name = args.fitsfile_name
 	telescopename = args.telescopename
 	timestep = str(args.image_timestep)
+	container_name = args.container_name
+	container_type = args.container_type
 
 
 	#some specific requirements that I need to figure out how they depend on the telescope 
@@ -62,18 +64,21 @@ def main():
 	field = '' #blank for split dataset 
 	imscale='5mas' #imaging scale for cleaning (some fraction of the beam)
 	mem=str(50) #memory for wsclean
-	use_singularity = True
-
-	if use_singularity:
-		singularity = singularity_setup(use_remote=True)
+	
+	container_type_lower = str(container_type).lower()
+	if container_type_lower == 'singularity':
+		container_setup = 'singularity exec --bind $HOME ' + container_name + ' '
+	elif container_type_lower == 'docker':
+		container_setup = 'docker run --rm -v $HOME:/home/user -w /home/user ' + container_name + ' '
+	elif container_type_lower == 'none':
+		container_setup = ''
 	else:
-		singularity = ''
+		raise ValueError(f"Unknown container type: {container_type}. Use 'singularity', 'docker', or 'none'")
 
-
-	bash_runfile = 'run_predict.sh'
-	predict_file_name = 'brender_'+telescopename+'_inpmodel_'+timestep
-	image_file_name = 'brender_'+telescopename+'_modimage_'+timestep
-	imagesum_file_name = 'brender_'+telescopename+'_sumimage_'+timestep
+	bash_runfile = os.path.join(RESULTS,'run_predict.sh')
+	predict_file_name = os.path.join(RESULTS,'brender_'+telescopename+'_inpmodel_'+timestep)
+	image_file_name = os.path.join(RESULTS,'brender_'+telescopename+'_modimage_'+timestep)
+	imagesum_file_name = os.path.join(RESULTS,'brender_'+telescopename+'_sumimage_'+timestep)
 
 
 	f = open(bash_runfile,'w')
