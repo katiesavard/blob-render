@@ -65,11 +65,12 @@ def main():
 	imscale='5mas' #imaging scale for cleaning (some fraction of the beam)
 	mem=str(50) #memory for wsclean
 	
+	cont = os.path.join(CONTAINERS,container_name)
 	container_type_lower = str(container_type).lower()
 	if container_type_lower == 'singularity':
-		container_setup = 'singularity exec --bind $HOME ' + container_name + ' '
+		container_setup = 'singularity exec --bind $HOME ' + cont + ' '
 	elif container_type_lower == 'docker':
-		container_setup = 'docker run --rm -v $HOME:/home/user -w /home/user ' + container_name + ' '
+		container_setup = 'docker run --rm -v $HOME:/home/user -w /home/user ' + cont + ' '
 	elif container_type_lower == 'none':
 		container_setup = ''
 	else:
