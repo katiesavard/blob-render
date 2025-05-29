@@ -33,6 +33,7 @@ Homepage = "http://github.com/katiesavarc/blob-render"
 "blobrender.predict" = "blobrender.predict_fromfits:main"
 "blobrender.resize-fits" = "blobrender.resize_fits:main"
 "blobrender.simulation-luminosity" = "blobrender.simulation_luminosity:main"
+"blobrender.setup-container" = "blobrender.setup_container:main"
 
 [tool.setuptools]
 packages = ["blobrender"]
