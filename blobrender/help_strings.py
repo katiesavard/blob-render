@@ -32,7 +32,9 @@ HELP_DICT = {
     "nu_observed": "Observed frequency",
     "eta": "Eta value for the image",
     "dtype": "Type of data",
-    "load_interp": "Load interpolation data"
+    "load_interp": "Load interpolation data",
+    "container_name": "Name of the container for running the simulation",
+    "container_type": "Type of container to use (e.g., 'singularity', 'docker', or 'none')",
 }
 
 TYPES_DICT = {
