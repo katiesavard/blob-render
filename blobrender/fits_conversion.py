@@ -193,8 +193,8 @@ def main():
         #update the yaml file with the new fits name
         yaml_path = os.path.join(CONFIGS,'default_prediction.yaml')
         tools.update_yaml('fitsfile_name',fits_name,yaml_path)
-        tools.update_yaml('xpix',nxpix,yaml_path)
-        tools.update_yaml('ypix',nypix,yaml_path)
+        tools.update_yaml('ypix',nxpix,yaml_path)
+        tools.update_yaml('xpix',nypix,yaml_path)
         tools.update_yaml('scale',round(xasec,6),yaml_path)
    
 
