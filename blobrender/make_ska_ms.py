@@ -6,7 +6,7 @@ import os
 import sys
 from blobrender import tools
 from blobrender.help_strings import HELP_DICT
-from blobrender.config import TEL_INFO, CONFIGS
+from blobrender.paths import TEL_INFO, CONFIGS
 
 
 sm = simulator()

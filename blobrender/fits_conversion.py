@@ -6,7 +6,7 @@ import yaml
 import argparse
 from PIL import Image
 
-from .config import PLOTS, CONFIGS, SIM_DAT
+from .paths import PLOTS, CONFIGS, SIM_DAT
 from . import tools
 from blobrender.help_strings import HELP_DICT
 

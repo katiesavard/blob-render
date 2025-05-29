@@ -3,7 +3,7 @@ import numpy as np
 import argparse
 import yaml
 import os
-from .config import SIM_DAT, PLOTS, CONFIGS
+from .paths import SIM_DAT, PLOTS, CONFIGS
 from blobrender.help_strings import HELP_DICT
 
 ####not currently using this functions because I know the size of my sims but can use it to crop the image if needed

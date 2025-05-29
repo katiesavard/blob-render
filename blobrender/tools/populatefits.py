@@ -2,7 +2,7 @@ import numpy
 import shutil
 import argparse
 from astropy.io import fits
-from blobrender.config import SIM_DAT, RESULTS
+from blobrender.paths import SIM_DAT, RESULTS
 import os
 
 def get_image(fitsfile):
