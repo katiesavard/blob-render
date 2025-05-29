@@ -82,8 +82,11 @@ katherine.savard@physics.ox.ac.uk
 with much help from many others 👨‍💻, to name a few
 
 Ian Heywood
+
 James Matthews
+
 Rob Fender
+
 Andrew Hughes
 
 ---
