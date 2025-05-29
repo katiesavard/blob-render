@@ -1,0 +1,30 @@
+Bootstrap: docker
+From: ubuntu:22.04
+Stage: build
+
+
+%post
+    echo "Here we are installing software and other dependencies for the container!"
+    apt update -y
+    apt install -y software-properties-common 
+    apt update -y
+    apt upgrade -y 
+    ln -fs /usr/share/zoneinfo/Canada/Mountain /etc/localtime
+    DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
+    # wsclean requirements
+    apt install -y casacore-dev cmake g++ \
+      git pkg-config libblas-dev \
+      libboost-date-time-dev libboost-filesystem-dev \
+      libboost-program-options-dev libboost-system-dev \
+      libcfitsio-dev libfftw3-dev libgsl-dev \
+      libhdf5-dev liblapack-dev libopenmpi-dev \
+      libpython3-dev pkg-config
+    # Install wsclean
+        git clone -b v3.5 https://gitlab.com/aroffringa/wsclean.git
+        cd wsclean
+        mkdir -p build
+        cd build
+        cmake ../ -DCMAKE_PREFIX_PATH="../../EveryBeam/"
+        make -j 4
+        make install
+        cd ../../
