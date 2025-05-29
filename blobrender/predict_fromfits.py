@@ -94,9 +94,9 @@ def main():
 	#f.write(f'{sed_inplace} \"s/op_fits.*fits\'/op_fits = \''+predict_file_name+'-model.fits\'/g" populatefits.py\n')
 
 	f.write(
-    	f"python3 -m blobrender.tools.populatefits --model_fits '{fitsfile_name}' "
-    	f"--wsclean_fits '{predict_file_name}-image.fits' "
-    	f"--op_fits '{predict_file_name}-model.fits'\n"
+    	f"python3 -m blobrender.tools.populatefits --model_fits {fitsfile_name} "
+    	f"--wsclean_fits {predict_file_name}-image.fits "
+    	f"--op_fits {predict_file_name}-model.fits \n"
 	)
 	#bulldoze the dirty fits files with the data from simulation
 	#f.write("python3 populatefits.py\n")
