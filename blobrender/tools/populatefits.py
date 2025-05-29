@@ -2,7 +2,8 @@ import numpy
 import shutil
 import argparse
 from astropy.io import fits
-
+from blobrender.config import SIM_DAT, RESULTS
+import os
 
 def get_image(fitsfile):
         input_hdu = fits.open(fitsfile)[0]
@@ -21,7 +22,7 @@ def flush_fits(newimage,fitsfile):
         if len(input_hdu.data.shape) == 2:
                 input_hdu.data[:,:] = newimage
         elif len(input_hdu.data.shape) == 3:
-                input_hdu.data[0,:,:] = newimage_
+                input_hdu.data[0,:,:] = newimage
         else:
                 input_hdu.data[0,0,:,:] = newimage
         f.flush()
@@ -33,7 +34,7 @@ def main():
         parser.add_argument('--op_fits', required=True)
         args = parser.parse_args()
 
-        model_fits = args.model_fits #'ffile_ri0.001_rb0.02_k0.1_lz25_6hhres_newprs2_0_1.7GHz.fits'
+        model_fits = os.path.join(SIM_DAT, os.path.basename(args.model_fits)) #'ffile_ri0.001_rb0.02_k0.1_lz25_6hhres_newprs2_0_1.7GHz.fits'
         wsclean_fits = args.wsclean_fits #'brender_emerlin_inpmodel_0-image.fits'
         op_fits = args.op_fits #'brender_emerlin_inpmodel_0-model.fits'
 
