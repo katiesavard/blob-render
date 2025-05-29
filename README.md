@@ -1,6 +1,6 @@
 # ✨ blobrender ✨
 
-**blobrender** is a python package for turning simulations into realistic radio images. it provides tools for manipulating fits files, generating measurement sets, and simulating telescope observations.
+**blobrender** is a python package for turning simulations into realistic radio images.
 
 ---
 
@@ -79,7 +79,9 @@ use `blobrender.setup-container` to build or pull the required containers.
 katie savard  
 katherine.savard@physics.ox.ac.uk
 
-with much help from many others 👨‍💻, to name a few
+with much help from many others 👨‍💻
+
+Henry Whitehead (built the DART ray-tracing module)
 
 Ian Heywood
 
