@@ -75,7 +75,7 @@ def main():
 	else:
 		raise ValueError(f"Unknown container type: {container_type}. Use 'singularity', 'docker', or 'none'")
 
-	bash_runfile = os.path.join(RESULTS,'run_predict.sh')
+	bash_runfile = 'run_predict.sh'
 	predict_file_name = os.path.join(RESULTS,'brender_'+telescopename+'_inpmodel_'+timestep)
 	image_file_name = os.path.join(RESULTS,'brender_'+telescopename+'_modimage_'+timestep)
 	imagesum_file_name = os.path.join(RESULTS,'brender_'+telescopename+'_sumimage_'+timestep)
@@ -87,11 +87,11 @@ def main():
 	#rephase real visibilities to where you want to add the sim data to
 	if rephase_real:
 		f.write('printf "rephasing real data\n" \n')
-		f.write(singularity+'chgcentre '+split_ms_name+' 18h20m21.6185s +07d11m00.6386s\n') 
+		f.write(container_setup+'chgcentre '+split_ms_name+' 18h20m21.6185s +07d11m00.6386s\n') 
 	
 	#clean with 0 iterations: create fits file images with dirty visibilities but the right dimensions
 	f.write('printf "creating model\n" \n')
-	f.write(singularity+'wsclean -size '+xpix+' '+ypix+' -scale '+scale+'asec -niter 0 -channels-out 1 '+reorder+' -name '+predict_file_name+' -data-column '+column+' -use-wgridder -mem '+mem+' '+split_ms_name+'\n')
+	f.write(container_setup+'wsclean -size '+xpix+' '+ypix+' -scale '+scale+'asec -niter 0 -channels-out 1 '+reorder+' -name '+predict_file_name+' -data-column '+column+' -use-wgridder -mem '+mem+' '+split_ms_name+'\n')
 	
 	#write in the correct filenames into populatefits.py
 	#f.write(f'{sed_inplace} \"s/model_fits.*fits\'/model_fits = \''+fitsfile_name+'\'/g" populatefits.py\n')
@@ -115,29 +115,29 @@ def main():
 	
 	#predict model visibilities
 	f.write('printf "predicting model visibilities\n" \n')
-	f.write(singularity+'wsclean -predict -mem '+mem+' -size '+xpix+' '+ypix+' -scale '+scale+'asec -channels-out 1 '+reorder+' -name '+predict_file_name+' -use-wgridder '+split_ms_name+'/\n')
+	f.write(container_setup+'wsclean -predict -mem '+mem+' -size '+xpix+' '+ypix+' -scale '+scale+'asec -channels-out 1 '+reorder+' -name '+predict_file_name+' -use-wgridder '+split_ms_name+'/\n')
 		
 	#image the model visibilities
 	f.write('printf "imaging model data with no noise\n" \n')
-	f.write(singularity+'wsclean -mem 80 -mgain 0.9 -gain 0.15 -size 1024 1024 -scale '+imscale+' -niter 1000 -channels-out 1 -no-update-model-required '+reorder+' -name '+image_file_name+' -data-column MODEL_DATA '+field+' -use-wgridder '+split_ms_name+'\n')
+	f.write(container_setup+'wsclean -mem 80 -mgain 0.9 -gain 0.15 -size 1024 1024 -scale '+imscale+' -niter 1000 -channels-out 1 -no-update-model-required '+reorder+' -name '+image_file_name+' -data-column MODEL_DATA '+field+' -use-wgridder '+split_ms_name+'\n')
 	
 	#add together model and real data
 	if add_noise:
 		f.write('printf "adding model to real data\n" \n')
-		f.write(singularity+'python3 -m blobrender.tools.add_MS_column '+split_ms_name+' --colname DATA_MODEL_SUM\n')
-		f.write(singularity+'python3 -m blobrender.tools.copy_MS_column '+split_ms_name+' --fromcol CORRECTED_DATA --tocol DATA_MODEL_SUM\n')
-		f.write(singularity+'python3 -m blobrender.tools.sum_MS_columns '+split_ms_name+' --src MODEL_DATA --dest DATA_MODEL_SUM\n')
+		f.write(container_setup+'python3 -m blobrender.tools.add_MS_column '+split_ms_name+' --colname DATA_MODEL_SUM\n')
+		f.write(container_setup+'python3 -m blobrender.tools.copy_MS_column '+split_ms_name+' --fromcol CORRECTED_DATA --tocol DATA_MODEL_SUM\n')
+		f.write(container_setup+'python3 -m blobrender.tools.sum_MS_columns '+split_ms_name+' --src MODEL_DATA --dest DATA_MODEL_SUM\n')
 
 	#rephase the visibilities back to the original phase centre 
 	if rephase_real:
 		f.write('printf "rephasing real data back to original phase centre\n" \n')
-		f.write(singularity+'chgcentre '+split_ms_name+' 18h20m21.938s 07d11m07.177s\n')  #DATA, MODEL_DATA and CORRECTED_DATA 
-		f.write(singularity+'chgcentre -datacolumn DATA_MODEL_SUM '+split_ms_name+' 18h20m21.938s 07d11m07.177s\n')  #DATA_MODEL_SUM 
+		f.write(container_setup+'chgcentre '+split_ms_name+' 18h20m21.938s 07d11m07.177s\n')  #DATA, MODEL_DATA and CORRECTED_DATA 
+		f.write(container_setup+'chgcentre -datacolumn DATA_MODEL_SUM '+split_ms_name+' 18h20m21.938s 07d11m07.177s\n')  #DATA_MODEL_SUM 
 	
 	#image the model+data according to emerlin recommended params
 	if add_noise:
 		f.write('printf "imaging model + data\n" \n')
-		f.write(singularity+'wsclean -mem 80 -mgain 0.8 -gain 0.15 -size 5000 5000 -scale 5masec -niter 10000 -channels-out 1 -no-update-model-required -reorder -name '
+		f.write(container_setup+'wsclean -mem 80 -mgain 0.8 -gain 0.15 -size 5000 5000 -scale 5masec -niter 10000 -channels-out 1 -no-update-model-required -reorder -name '
 		+imagesum_file_name+' -weight briggs 0.8 -data-column DATA_MODEL_SUM -use-wgridder '+split_ms_name+'\n')
 
 	f.close()
