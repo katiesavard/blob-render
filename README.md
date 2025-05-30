@@ -4,7 +4,7 @@
 
 ---
 
-## 🦶features🍻
+## features
 
 - 🖼️ convert simulation outputs to fits format
 - 📡 generate measurement sets for existing and future radio telescopes
