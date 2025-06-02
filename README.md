@@ -226,13 +226,13 @@ with much help from many others 👨‍💻
 
 Henry Whitehead (built the DART ray-tracing module)
 
-Ian Heywood
+Ian Heywood (see [oxkat](https://github.com/IanHeywood/oxkat) software, a heavy inspiration)
 
 James Matthews
 
 Rob Fender
 
-Andrew Hughes
+Andrew Hughes (invaluable help with containerizing the wsclean installation)
 
 ---
 
