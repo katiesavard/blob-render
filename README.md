@@ -1,6 +1,7 @@
-# ✨ blobrender ✨
+#  blobrender 
 
 **blobrender** is a python package for turning simulations into realistic radio images.
+
 
 
 ---
