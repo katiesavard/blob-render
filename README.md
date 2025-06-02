@@ -6,7 +6,7 @@
 
 ---
 
-### caution:
+### caution ❗️:
 
 This project is still currently under development and may contain bugs. Use at your own risk and please report unexpected behaviour to [the author](mailto:katherine.savard@physics.ox.ac.uk).
 
