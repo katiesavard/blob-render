@@ -32,20 +32,20 @@ def loader_bar(i,range,modulo): #just for output purposes
         print(s,end="...",flush=True)
         prev_perc=perc+modulo
 
-def get_arguments(default_yaml_file,help_dict=None):
-    # First, parse --config if present
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument('--config', type=str, default=default_yaml_file,
-                        help="Path to the YAML config file (default: %(default)s)")
-    args_config, remaining_argv = parser.parse_known_args()
+def get_arguments(default_yaml_file,help_dict=None,description=' '):
+    # Step 1: Pre-parse --config to determine which YAML file to use
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument('--config', type=str, default=default_yaml_file,
+                            help="Path to the YAML config file (default: %(default)s)")
+    args_config, remaining_argv = pre_parser.parse_known_args()
     yaml_file = args_config.config
 
-    print(f"Using config file: {yaml_file}")
     
+    # Step 2: Load defaults from YAML
     with open(yaml_file, 'r') as f:
         defaults = yaml.safe_load(f)
 
-    # --- Force types from TYPES_DICT ---
+    # Step 3: Enforce types from TYPES_DICT
     for key, value in defaults.items():
         desired_type = TYPES_DICT.get(key)
         if desired_type is not None and not isinstance(value, desired_type):
@@ -57,13 +57,15 @@ def get_arguments(default_yaml_file,help_dict=None):
                     value = desired_type(value)
             except Exception:
                 pass  # If conversion fails, keep original
-            defaults[key] = value
-    # -----------------------------------        
+            defaults[key] = value      
     
-    # Filter help_dict to only keys present in the YAML
+    # Step 4: Filter help_dict to only keys present in the YAML
     filtered_help = {k: v for k, v in (help_dict or HELP_DICT).items() if k in defaults}
     
-    parser = argparse.ArgumentParser(description="Argument parser with YAML defaults and CLI overrides")
+    # Step 5: Main parser with all arguments
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('--config', type=str, default=default_yaml_file,
+                        help="Path to the YAML config file (default: %(default)s)")    
     for key, value in defaults.items():
         arg_type = TYPES_DICT.get(key, type(value))
         help_str = filtered_help.get(key, f'(default from YAML: {value})')
@@ -75,7 +77,9 @@ def get_arguments(default_yaml_file,help_dict=None):
 
     args = parser.parse_args(remaining_argv)
 
-    # Update YAML if any values changed
+    print(f"Using config file: {yaml_file}")
+
+    # Step 6: Update YAML if any values changed
     updated = False
     changes = []
     for key in defaults:
@@ -92,7 +96,7 @@ def get_arguments(default_yaml_file,help_dict=None):
         for change in changes:
             print("  " + change)
     
-    # Print summary
+    # Step 7: Print summary
     print("\nSummary of parameters used:")
     for key in defaults:
         arg_val = getattr(args, key)
