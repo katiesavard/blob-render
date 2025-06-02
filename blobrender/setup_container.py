@@ -142,6 +142,8 @@ def main():
         if args.filetype == "Singularity":
             container_name = singularity_setup(use_remote=args.remote_build, use_local_file=args.local_file)
         else:
+            if args.remote_build:
+                raise ValueError("Cannot use remote build with Docker. Option only available for Singularity.")
             container_name = docker_setup(use_local_file=args.local_file)
 
     yaml_path = os.path.join(CONFIGS, "default_prediction.yaml")
