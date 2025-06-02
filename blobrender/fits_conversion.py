@@ -111,6 +111,7 @@ def load_image_or_npy(data_folder,filename):
         return image_array
     
 def main():
+
     ##############       defining variables       ############################
 
     verbose = True #prints to screen as well as to file
@@ -121,7 +122,11 @@ def main():
      # Load defaults from YAML
 
     yaml_file = os.path.join(CONFIGS,'default_simulation.yaml')
-    args = tools.get_arguments(yaml_file,HELP_DICT)
+    description = "Convert simulation outputs (numpy or image format) to FITS images for use with blobrender." \
+    "   Handles reshaping and resolution checks to make appropriate input to the prediction stafe." \
+    "   Default values from default_prediction.yaml, unless otherwise specified with --config. Updates default_prediction.yaml accordingly." \
+
+    args = tools.get_arguments(yaml_file,HELP_DICT,description)
     
 
     # Unpack arguments
