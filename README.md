@@ -1,3 +1,6 @@
+[![astropy](http://img.shields.io/badge/powered%20by-AstroPy-orange.svg?style=flat)](http://www.astropy.org/)
+![License](https://img.shields.io/github/license/katiesavarc/blob-render)
+
 #  blobrender 
 
 **blobrender** is a python package for turning simulations into realistic radio images.
@@ -261,6 +264,11 @@ Andrew Hughes (invaluable help with containerizing the wsclean installation)
 
 ---
 
+
+## Testing
+
+There is currently no testing happening. Beware. 
+Coming soon. Report any bugs to [the author](mailto:katherine.savard@physics.ox.ac.uk).
 
 
 ## 🌐 homepage
