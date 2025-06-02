@@ -15,14 +15,15 @@ This project is still currently under development and may contain bugs. Use at y
 ## Table of Contents
 
 - [Features](#features)
-- [Installation](#installation)
-- [Requirements](#requirements)
-- [Command Line Tools](#command-line-tools)
-- [Example Usage](#example-usage)
-- [Container Support](#container-support)
-- [License](#license)
-- [Author](#author)
-- [Homepage](#homepage)
+- [Requirements](#%EF%B8%8F-requirements)
+- [Installation](#-installation)
+- [Command Line Tools](#%EF%B8%8F-command-line-tools)
+- [Quickstart Example](#-quickstart-example)
+- [Containers](#%EF%B8%8F--containers)
+- [License](#-license)
+- [Author](#-author)
+- [Software roll-call](#-software-package-roll-call)
+- [Homepage](#-homepage)
 
 ---
 
