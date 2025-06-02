@@ -250,8 +250,8 @@ Andrew Hughes
 | **pyrap**         | Measurement set handling                          | [pyrap GitHub](https://github.com/casacore/python-casacore)    | CASAcore Developers             |
 | **pillow**        | Image file reading/writing                        | [python-pillow.org](https://python-pillow.org/)  | Alex Clark, Pillow Contributors |
 | **numba**         | Fast numerical code via JIT compilation           | [numba.pydata.org](https://numba.pydata.org/)    | Anaconda, Inc.                  |
-| **docker**        | Containerization (optional, for reproducibility)  | [docker.com](https://www.docker.com/)            | Docker, Inc.                    |
-| **singularity**   | Containerization (optional, for reproducibility)  | [apptainer.org](https://apptainer.org/)          | Apptainer/Singularity Team      |
+| **docker**        | Containerization  | [docker.com](https://www.docker.com/)            | Docker, Inc.                    |
+| **singularity**   | Containerization   | [apptainer.org](https://apptainer.org/)          | Apptainer/Singularity Team      |
 | **wsclean**       | Radio interferometric image synthesis (cleaning)   | [wsclean GitLab](https://gitlab.com/aroffringa/wsclean) | André Offringa et al.           |
 
 ---
