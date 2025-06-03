@@ -1,4 +1,3 @@
-import dart as dt
 import numpy as np
 import tkinter as tk
 from tkinter import ttk
@@ -6,7 +5,8 @@ from PIL import ImageTk, Image
 from pathlib import Path
 import os
 
-from .paths import SIM_DAT
+from blobrender.dart import dart as dt
+from ..paths import SIM_DAT
 
 class gDART(tk.Frame):
     """
