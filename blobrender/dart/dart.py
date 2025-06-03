@@ -172,12 +172,12 @@ class MeshBlock:
         mb_span = mb_exit - mb_entrance
         crossings = np.ceil(np.abs(mb_span / self.dx))
         max_depth = 1 + np.sum(crossings)
-        path, dwells = self.walk_path(t_entry, cell, dt, next_t_cross, exit_cond, step_dir, max_depth, self.axes_bitmap)
-        true_depth = np.nonzero(path[:,0] == -1)[0]
+        ray_path, dwells = self.walk_path(t_entry, cell, dt, next_t_cross, exit_cond, step_dir, max_depth, self.axes_bitmap)
+        true_depth = np.nonzero(ray_path[:,0] == -1)[0]
         if np.size(true_depth) == 0:
-            return path, dwells
+            return ray_path, dwells
         else:
-            return path[:true_depth[0]], dwells[:true_depth[0]]
+            return ray_path[:true_depth[0]], dwells[:true_depth[0]]
 
     def int_clamp(self, input, minval, maxval):
         """
@@ -208,11 +208,11 @@ class MeshBlock:
 
         current_t = t_entry
         depth = 0
-        path = np.full(shape=(max_depth, 3), fill_value=-1, dtype=np.int32)
+        ray_path = np.full(shape=(max_depth, 3), fill_value=-1, dtype=np.int32)
         dwells = np.full(shape=(max_depth), fill_value=-1, dtype=np.float64)
         while depth < max_depth:
             # add current position to path
-            path[depth, :] = cell
+            ray_path[depth, :] = cell
             # find next cell on path
             k = (((next_t_cross[0] < next_t_cross[1]) << 2) +
                  ((next_t_cross[0] < next_t_cross[2]) << 1) +
@@ -232,7 +232,7 @@ class MeshBlock:
             next_t_cross[axis] += dt[axis]
             depth += 1
 
-        return path, dwells
+        return ray_path, dwells
 
 class Ray:
     """
@@ -347,12 +347,12 @@ class Screen:
         for mb in mesh.meshblocks:
             hit, tmin, tmax = mb.calc_intercept(ray)
             if not hit: continue
-            path, dwells = mb.calc_path(ray, tmin, tmax)
-            ndim = np.size(np.shape(path))
+            ray_path, dwells = mb.calc_path(ray, tmin, tmax)
+            ndim = np.size(np.shape(ray_path))
             if ndim == 1:  # single cell intersection
-                on_path = np.s_[*path]
+                on_path = np.s_[ray_path[0], ray_path[1], ray_path[2]]
             else:
-                on_path = np.s_[path[:, 0], path[:, 1], path[:, 2]]
+                on_path = np.s_[ray_path[:, 0], ray_path[:, 1], ray_path[:, 2]]
             if not auto_boost: # boosting negligible or already applied to emm data
                 weighted_emm = mb.emm[on_path] * dwells
             else: # apply doppler boosting
@@ -417,26 +417,29 @@ class Screen:
             for pixel_num, index_pair in enumerate(indices):
                 pixel_value = 0
                 for mb in mesh.meshblocks:
-                    path = mb.baked_rays[*index_pair, :, :]
-                    dwells = mb.baked_dwells[*index_pair, :]
+                    ray_path = mb.baked_rays[index_pair, :, :]
+                    dwells = mb.baked_dwells[index_pair, :]
                     live = (dwells != -1) # remove dead indices
-                    path = path[live]
+                    ray_path = ray_path[live]
                     dwells = dwells[live]
-                    on_path = np.s_[path[:,0], path[:,1], path[:, 2]]
+                    if ndim == 1:  # single cell intersection
+                        on_path = np.s_[ray_path]
+                    else:
+                        on_path = np.s_[ray_path[:, 0], ray_path[:, 1], ray_path[:, 2]]
                     if not auto_boost:
                         weighted_emm = mb.emm[on_path] * dwells
                     else:
                         weighted_emm = mb.emm[on_path] * dwells * mb.doppler_fac[on_path]
                     pixel_value += np.sum(weighted_emm)
-                self.img[*index_pair] = pixel_value
+                self.img[index_pair] = pixel_value
                 if verbose and pixel_num % coarse == 0:
                     print("summed path for pixel {0}/{1}, sum {2}% complete".format(pixel_num, num_pixels,
                                                                        round(pixel_num / num_pixels * 100, 1)))
             if verbose: print("summation finished, 100% complete")
         else:
             for pixel_num, index_pair in enumerate(indices):
-                pixel_value = self.calc_pixel_value(*index_pair, mesh)
-                self.img[*index_pair] = pixel_value
+                pixel_value = self.calc_pixel_value(index_pair, mesh)
+                self.img[index_pair] = pixel_value
                 if verbose and pixel_num % coarse == 0:
                     print("pixel {0}/{1} drawn, render {2}% complete".format(pixel_num, num_pixels, round(pixel_num/num_pixels * 100,1)))
                     if progress is not None and root is not None:
@@ -499,11 +502,11 @@ class Screen:
                 # find path, dwells
                 hit, tmin, tmax = mb.calc_intercept(ray)
                 if not hit: continue
-                path, dwells = mb.calc_path(ray, tmin, tmax)
+                ray_path, dwells = mb.calc_path(ray, tmin, tmax)
                 # stash path, dwells
                 depth = np.size(dwells)
-                mb.baked_rays[*index_pair, :depth, :] = path
-                mb.baked_dwells[*index_pair, :depth] = dwells
+                mb.baked_rays[index_pair, :depth, :] = ray_path
+                mb.baked_dwells[index_pair, :depth] = dwells
             if verbose and pixel_num % coarse == 0:
                 print("baked path for pixel {0}/{1}, bake {2}% complete".format(pixel_num, num_pixels, round(pixel_num / num_pixels * 100, 1)))
 

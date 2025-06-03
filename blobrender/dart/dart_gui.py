@@ -6,6 +6,8 @@ from PIL import ImageTk, Image
 from pathlib import Path
 import os
 
+#from .paths import SIM_DAT
+
 class gDART(tk.Frame):
     """
     Create a tkinter frame for handling GUI presentation of DART functionality.
@@ -21,7 +23,7 @@ class gDART(tk.Frame):
             raise Exception("unable to parse mode in gDART constructor.")
         
         # define initials
-        self.blank_str = os.path.join(Path(__file__).resolve().parent,"blank.png") # todo: depreciate this
+        self.blank_str = os.path.join(Path(__file__).resolve().parent,"blank.png") # todo: depreciate this and use .path
         self.render = None
         self.cur_zoom = 1
         self.cur_exp = 1
@@ -91,8 +93,10 @@ class gDART(tk.Frame):
         self.post_btn = tk.Button(**self.post_args, text="Post-Process", command=self.call_postproc)
         self.post_btn.grid(row=4,column=1, columnspan=2, stick=tk.W+tk.E)
 
-        # set default values
-        self.load_ent.insert(0, "/scratch/render/interpolated_frame_gamm7_early_287.npy")
+        # set default values 
+        #def_dat_str = os.path.join(SIM_DAT, "maxij1820_simulation/disp_array_maxij1820_simulation.npy")
+        temp_dat_str = "/Users/whiteheadh/github/blob-render/sim_data/maxij1820_simulation/disp_array_maxij1820_simulation.npy"
+        self.load_ent.insert(0, temp_dat_str)
         self.theta_ent.insert(0,"75")
         self.phi_ent.insert(0,"0")
         self.tilt_ent.insert(0,"-38")
