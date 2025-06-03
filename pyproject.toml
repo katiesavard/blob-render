@@ -34,6 +34,7 @@ Homepage = "http://github.com/katiesavarc/blob-render"
 "blobrender.resize-fits" = "blobrender.resize_fits:main"
 "blobrender.simulation-luminosity" = "blobrender.simulation_luminosity:main"
 "blobrender.setup-container" = "blobrender.setup_container:main"
+"blobrender.dart-gui" = "blobrender.dart.dart_gui:main"
 
 [tool.setuptools]
 packages = ["blobrender"]
