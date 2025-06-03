@@ -102,9 +102,10 @@ def print_and_save(string,output,verbose):
 
 def load_image_or_npy(data_folder,filename):
     filepath = os.path.join(data_folder,filename)
-    ext = os.path.splitext(filepath)[1].lower()
+    name, ext = os.path.splitext(filename)
+    ext = ext.lower() 
     if ext == ".npy":
-        image_array = tools.load_list(data_folder,filename)
+        image_array = tools.load_list(data_folder,name)
         return image_array
     else:
         image_array = np.flipud(tools.rgb2gray(np.array(Image.open(filepath)))) 
