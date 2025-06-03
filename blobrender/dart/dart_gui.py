@@ -32,6 +32,7 @@ class gDART(tk.Frame):
         # generate window and call widget construction
         self.root = tk.Tk()
         self.root.geometry("900x200")
+        self.root.geometry(f"{self.root.winfo_screenwidth()}x{200}")
         self.root.title("blob-render: gDART")
         self.root.configure(bg=self.bg_col)
         #self.root.resizable(False, False)
