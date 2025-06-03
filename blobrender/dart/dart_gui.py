@@ -6,7 +6,7 @@ from PIL import ImageTk, Image
 from pathlib import Path
 import os
 
-#from .paths import SIM_DAT
+from .paths import SIM_DAT
 
 class gDART(tk.Frame):
     """
@@ -94,9 +94,9 @@ class gDART(tk.Frame):
         self.post_btn.grid(row=4,column=1, columnspan=2, stick=tk.W+tk.E)
 
         # set default values 
-        #def_dat_str = os.path.join(SIM_DAT, "maxij1820_simulation/disp_array_maxij1820_simulation.npy")
-        temp_dat_str = "/Users/whiteheadh/github/blob-render/sim_data/maxij1820_simulation/disp_array_maxij1820_simulation.npy"
-        self.load_ent.insert(0, temp_dat_str)
+        def_dat_str = os.path.join(SIM_DAT, "maxij1820_simulation/disp_array_maxij1820_simulation.npy")
+        #temp_dat_str = "/Users/whiteheadh/github/blob-render/sim_data/maxij1820_simulation/disp_array_maxij1820_simulation.npy"
+        self.load_ent.insert(0, def_dat_str)
         self.theta_ent.insert(0,"75")
         self.phi_ent.insert(0,"0")
         self.tilt_ent.insert(0,"-38")
@@ -243,6 +243,10 @@ class gDART(tk.Frame):
     def boot_gui(self):
         self.root.mainloop()
 
-if __name__ == "__main__":
+def main():
 
     gDART().boot_gui()
+
+if __name__ == "__main__":
+
+    main()
