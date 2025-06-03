@@ -131,7 +131,6 @@ def main():
 
     # Unpack arguments
     system_name = args.system_name
-    image_timestep = args.image_timestep
     nu_observe = args.nu_observe
     L_sim = args.L_sim
     distance_in_pc = args.distance_in_pc
@@ -149,7 +148,7 @@ def main():
     output_string = '' #logging string
 
     #user checks
-    output_string = print_and_save(" Image timestep = "+str(image_timestep)+"\n System = "+system_name,output_string,verbose)
+    output_string = print_and_save("System = "+system_name,output_string,verbose)
 
     if verbose:
         inp = input("Continue with current setup? (y/n) : ")
@@ -186,7 +185,7 @@ def main():
     hdu = fits.PrimaryHDU(image_array)
 
     exta_descriptors=''
-    fits_name = 'fits_'+system_name+'_'+str(image_timestep)+'_'+str(nu_observe/1e9)+'GHz'+exta_descriptors+'.fits'
+    fits_name = 'fits_'+system_name+'_'+str(nu_observe/1e9)+'GHz'+exta_descriptors+'.fits'
     save_to = data_folder+'/'+fits_name
     hdu.writeto(save_to,overwrite=True)
 
@@ -204,7 +203,7 @@ def main():
    
 
     ##################       make an output file       ############################
-    output_file = 'fits_info_'+system_name+str(image_timestep)+'.txt'
+    output_file = 'fits_info_'+system_name+'.txt'
     f = open(data_folder+'/'+output_file,'w')
     print(output_string)
     f.write(output_string)
