@@ -1,5 +1,5 @@
 [![astropy](http://img.shields.io/badge/powered%20by-AstroPy-orange.svg?style=flat)](http://www.astropy.org/)
-![License](https://img.shields.io/github/license/katiesavarc/blob-render)
+![License](https://img.shields.io/github/license/katiesavard/blob-render)
 
 #  blobrender 
 
@@ -106,7 +106,7 @@ This software can take raw simulated data all the way to a realistic radio image
 
 Default parameters for each step are stored in `configs/` as `default_simulation.yaml`, `default_MSbuilder.yaml`, and `default_prediction.yaml`. Command-line arguments overwrite these defaults. 
 
-See [wiki page](https://github.com/katiesavarc/blob-render/wiki) for more details on these steps, or follow the [tutorial section of the wiki](https://github.com/katiesavarc/blob-render/wiki/Tutorial) with provided test data.  
+See [wiki page](https://github.com/katiesavard/blob-render/wiki) for more details on these steps, or follow the [tutorial section of the wiki](https://github.com/katiesavard/blob-render/wiki/Tutorial) with provided test data.  
 
 Most of these steps can be feasibly performed on the average desktop computer, but the prediction step can be particularly intesive if measurement sets are large and we therefore recommend that this be installed and run on a computing cluster / HPC environment.
 
@@ -162,7 +162,7 @@ Most of these steps can be feasibly performed on the average desktop computer, b
     blobrender.setup-container --nocontainer
     ```
 
-    See [container support](#containers) for how to set up Docker or Singularity for the first time, and generally the [wiki page](https://github.com/katiesavarc/blob-render/wiki) for more in-depth information. 
+    See [container support](#containers) for how to set up Docker or Singularity for the first time, and generally the [wiki page](https://github.com/katiesavard/blob-render/wiki) for more in-depth information. 
 
 
 5) **Predict visibilities using the FITS file and measurement set:**
@@ -264,7 +264,7 @@ Nothing would work without these fantastic packages. This is basically a duct-ta
 
 ---
 
-*For more details on dependencies, see `pyproject.toml` or the [wiki page](https://github.com/katiesavarc/blob-render/wiki).*
+*For more details on dependencies, see `pyproject.toml` or the [wiki page](https://github.com/katiesavard/blob-render/wiki).*
 
 ---
 
@@ -277,4 +277,4 @@ Coming soon. Report any bugs to [the author](mailto:katherine.savard@physics.ox.
 
 ## 🌐 homepage
 
-[https://github.com/katiesavarc/blob-render](https://github.com/katiesavarc/blob-render)
+[https://github.com/katiesavarc/blob-render](https://github.com/katiesavard/blob-render)
