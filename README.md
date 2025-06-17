@@ -11,7 +11,7 @@
 
 ### ❗️ caution y'all❗️
 
-This project is still **currently under development** and does contain bugs. Use at your own risk and please report unexpected behavior to [the author](mailto:katherine.savard@physics.ox.ac.uk).
+This project is still **currently under development** and does contain bugs. Use at your own risk and please report unexpected behavior to [the author](mailto:katherine.savard@physics.ox.ac.uk). **Fully tested pipeline predicted to be ready for use early September 2025**.
 
 If you encounter problems with `pip install`-ing the project due to `casatools`, this may be due to OS incompatibility. See [this table in the casa docs](https://casadocs.readthedocs.io/en/stable/notebooks/introduction.html#Compatibility) for a list of compatible OS/python version combinations. *In the future we plan on containerizing this part of the workflow to mitigate fatal sensitivity to OS/python combinations.*
 
