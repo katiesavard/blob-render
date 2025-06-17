@@ -219,7 +219,7 @@ You are now clear to run the `blobrender.setup-container` command with the `--re
 
 ## 📄 license
 
-???? not sure yet honestly
+MIT
 
 ---
 
@@ -243,6 +243,8 @@ Andrew Hughes (invaluable help with containerizing the wsclean installation)
 ---
 
 ## 📦 Software Package Roll-Call
+
+Nothing would work without these fantastic packages. This is basically a duct-taped package of packages. 
 
 | Package/Tool      | Purpose/Role                                      | Link/Source                                      | Author               |
 |-------------------|---------------------------------------------------|--------------------------------------------------|---------------------------------|
@@ -270,7 +272,7 @@ Andrew Hughes (invaluable help with containerizing the wsclean installation)
 ## Testing
 
 There is currently no testing happening. Beware. 
-Coming soon. Report any bugs to [the author](mailto:katherine.savard@physics.ox.ac.uk).
+Coming soon. Report any bugs to [the author](mailto:katherine.savard@physics.ox.ac.uk) or create a GitHub issue. 
 
 
 ## 🌐 homepage
