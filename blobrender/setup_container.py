@@ -110,9 +110,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--filetype",
-        choices=["Docker", "Singularity"],
+        choices=["docker", "singularity"],
         required=False,
-        help="Choose either 'Docker' or 'Singularity' (required unless --nocontainer is set)"
+        help="Choose either 'docker' or 'singularity' (required unless --nocontainer is set)"
     )
     parser.add_argument(
         "--nocontainer",
@@ -129,7 +129,16 @@ def main():
         action="store_true",
         help="If set, use remote build for Singularity (ignored for Docker)."
     )
+
     args = parser.parse_args()
+
+    # Make filetype case-insensitive
+    if args.filetype:
+        filetype = args.filetype.lower()
+    else:
+        filetype = None
+    
+    
     if args.nocontainer:
         print("You chose not to use a container.")
         container_name = 'None'
@@ -139,12 +148,14 @@ def main():
             parser.error("--filetype is required unless --nocontainer is set")
         print(f"You chose to use a container of type: {args.filetype}")
         
-        if args.filetype == "Singularity":
+        if args.filetype == "singularity":
             container_name = singularity_setup(use_remote=args.remote_build, use_local_file=args.local_file)
-        else:
+        elif filetype == "docker":
             if args.remote_build:
                 raise ValueError("Cannot use remote build with Docker. Option only available for Singularity.")
             container_name = docker_setup(use_local_file=args.local_file)
+        else:
+            parser.error("Invalid --filetype. Choose either 'docker' or 'singularity'.")
 
     yaml_path = os.path.join(CONFIGS, "default_prediction.yaml")
     update_yaml("container_name", container_name, yaml_path)
