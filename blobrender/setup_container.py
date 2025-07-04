@@ -85,32 +85,42 @@ def docker_setup(use_local_file=False):
     wsclean_docker = "stimela/wsclean:1.6.3"
     local_dockerfile = os.path.join(CONTAINERS, "blobrender-dockerfile")
     local_image_name = "blobrender-docker"
-    if use_local_file:
-        if docker_image_exists(local_image_name):
-            print(f"Docker image '{local_image_name}' already exists. Skipping build.")
+    try:
+        if use_local_file:
+            if docker_image_exists(local_image_name):
+                print(f"Docker image '{local_image_name}' already exists. Skipping build.")
+            else:
+                print(f"Building Docker image from local Dockerfile: {local_dockerfile}")
+                build_cmd = [
+                    "docker", "build", "-f", local_dockerfile, "-t", local_image_name, CONTAINERS
+                ]
+                subprocess.run(build_cmd, check=True)
+            imagename = local_image_name
         else:
-            print(f"Building Docker image from local Dockerfile: {local_dockerfile}")
-            build_cmd = [
-                "docker", "build", "-f", local_dockerfile, "-t", local_image_name, CONTAINERS
-            ]
-            subprocess.run(build_cmd, check=True)
-        imagename = local_image_name
-    else:
-        if docker_image_exists(wsclean_docker):
-            print(f"Docker image '{wsclean_docker}' already exists. Skipping pull.")
-        else:
-            print("Pulling Docker image from Docker Hub.")
-            pull_cmd = ["docker", "pull", wsclean_docker]
-            subprocess.run(pull_cmd, check=True)
-        imagename = wsclean_docker
-    return imagename
+            if docker_image_exists(wsclean_docker):
+                print(f"Docker image '{wsclean_docker}' already exists. Skipping pull.")
+            else:
+                print("Pulling Docker image from Docker Hub.")
+                pull_cmd = ["docker", "pull", wsclean_docker]
+                subprocess.run(pull_cmd, check=True)
+            imagename = wsclean_docker
+        return imagename
+    except subprocess.CalledProcessError as e:
+        print("\nERROR: Docker command failed.")
+        print("Details:", e)
+        print("This may be because the Docker daemon is not running.")
+        print("Please start Docker Desktop and try again.\n")
+        raise
+    except FileNotFoundError:
+        print("\nERROR: Docker is not installed or not found in your PATH.")
+        print("Please install Docker and ensure it is available in your terminal.")
+        raise
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--filetype",
-        choices=["docker", "singularity"],
         required=False,
         help="Choose either 'docker' or 'singularity' (required unless --nocontainer is set)"
     )
@@ -137,6 +147,7 @@ def main():
         filetype = args.filetype.lower()
     else:
         filetype = None
+        print("No filetype specified. Defaulting to None.")
     
     
     if args.nocontainer:
@@ -144,11 +155,11 @@ def main():
         container_name = 'None'
         args.filetype = 'None'
     else: # If a container is to be used
-        if not args.filetype:
+        if not filetype:
             parser.error("--filetype is required unless --nocontainer is set")
-        print(f"You chose to use a container of type: {args.filetype}")
+        print(f"You chose to use a container of type: {filetype}")
         
-        if args.filetype == "singularity":
+        if filetype == "singularity":
             container_name = singularity_setup(use_remote=args.remote_build, use_local_file=args.local_file)
         elif filetype == "docker":
             if args.remote_build:
@@ -159,7 +170,7 @@ def main():
 
     yaml_path = os.path.join(CONFIGS, "default_prediction.yaml")
     update_yaml("container_name", container_name, yaml_path)
-    update_yaml("container_type", args.filetype, yaml_path)
+    update_yaml("container_type", filetype, yaml_path)
 
 
 
