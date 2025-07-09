@@ -1,5 +1,5 @@
 [![astropy](http://img.shields.io/badge/powered%20by-AstroPy-orange.svg?style=flat)](http://www.astropy.org/)
-![License](https://img.shields.io/github/license/katiesavarc/blob-render)
+![License](https://img.shields.io/github/license/katiesavard/blob-render)
 
 #  blobrender 
 
@@ -11,7 +11,7 @@
 
 ### ❗️ caution y'all❗️
 
-This project is still **currently under development** and does contain bugs. Use at your own risk and please report unexpected behavior to [the author](mailto:katherine.savard@physics.ox.ac.uk).
+This project is still **currently under development** and does contain bugs. Use at your own risk and please report unexpected behavior to [the author](mailto:katherine.savard@physics.ox.ac.uk). **Fully tested pipeline predicted to be ready for use early September 2025 -- watch this code (select 'Releases only') to be notified when the first stable version is available, as well as subsequent versions with wider capabilities**.
 
 If you encounter problems with `pip install`-ing the project due to `casatools`, this may be due to OS incompatibility. See [this table in the casa docs](https://casadocs.readthedocs.io/en/stable/notebooks/introduction.html#Compatibility) for a list of compatible OS/python version combinations. *In the future we plan on containerizing this part of the workflow to mitigate fatal sensitivity to OS/python combinations.*
 
@@ -106,7 +106,7 @@ This software can take raw simulated data all the way to a realistic radio image
 
 Default parameters for each step are stored in `configs/` as `default_simulation.yaml`, `default_MSbuilder.yaml`, and `default_prediction.yaml`. Command-line arguments overwrite these defaults. 
 
-See [wiki page](https://github.com/katiesavarc/blob-render/wiki) for more details on these steps, or follow the [tutorial section of the wiki](https://github.com/katiesavarc/blob-render/wiki/Tutorial) with provided test data.  
+See [wiki page](https://github.com/katiesavard/blob-render/wiki) for more details on these steps, or follow the [tutorial section of the wiki](https://github.com/katiesavard/blob-render/wiki/Tutorial) with provided test data.  
 
 Most of these steps can be feasibly performed on the average desktop computer, but the prediction step can be particularly intesive if measurement sets are large and we therefore recommend that this be installed and run on a computing cluster / HPC environment.
 
@@ -162,7 +162,7 @@ Most of these steps can be feasibly performed on the average desktop computer, b
     blobrender.setup-container --nocontainer
     ```
 
-    See [container support](#containers) for how to set up Docker or Singularity for the first time, and generally the [wiki page](https://github.com/katiesavarc/blob-render/wiki) for more in-depth information. 
+    See [container support](#containers) for how to set up Docker or Singularity for the first time, and generally the [wiki page](https://github.com/katiesavard/blob-render/wiki) for more in-depth information. 
 
 
 5) **Predict visibilities using the FITS file and measurement set:**
@@ -219,7 +219,7 @@ You are now clear to run the `blobrender.setup-container` command with the `--re
 
 ## 📄 license
 
-???? not sure yet honestly
+MIT
 
 ---
 
@@ -244,6 +244,8 @@ Andrew Hughes (invaluable help with containerizing the wsclean installation)
 
 ## 📦 Software Package Roll-Call
 
+Nothing would work without these fantastic packages. This is basically a duct-taped package of packages. 
+
 | Package/Tool      | Purpose/Role                                      | Link/Source                                      | Author               |
 |-------------------|---------------------------------------------------|--------------------------------------------------|---------------------------------|
 | **numpy**         | Numerical operations and array handling           | [numpy.org](https://numpy.org/)                  | Travis Oliphant et al.          |
@@ -262,7 +264,7 @@ Andrew Hughes (invaluable help with containerizing the wsclean installation)
 
 ---
 
-*For more details on dependencies, see `pyproject.toml` or the [wiki page](https://github.com/katiesavarc/blob-render/wiki).*
+*For more details on dependencies, see `pyproject.toml` or the [wiki page](https://github.com/katiesavard/blob-render/wiki).*
 
 ---
 
@@ -270,9 +272,9 @@ Andrew Hughes (invaluable help with containerizing the wsclean installation)
 ## Testing
 
 There is currently no testing happening. Beware. 
-Coming soon. Report any bugs to [the author](mailto:katherine.savard@physics.ox.ac.uk).
+Coming soon. Report any bugs to [the author](mailto:katherine.savard@physics.ox.ac.uk) or create a GitHub issue. 
 
 
 ## 🌐 homepage
 
-[https://github.com/katiesavarc/blob-render](https://github.com/katiesavarc/blob-render)
+[https://github.com/katiesavarc/blob-render](https://github.com/katiesavard/blob-render)
