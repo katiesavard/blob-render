@@ -1,8 +1,14 @@
+import os
+
+# Ensure ~/.casa/data exists before importing casatools
+casa_data_dir = os.path.expanduser("~/.casa/data")
+if not os.path.exists(casa_data_dir):
+    os.makedirs(casa_data_dir, exist_ok=True)
+
 from casatools import simulator, measures, table
 from datetime import datetime
 
 import numpy as np
-import os
 import sys
 from blobrender import tools
 from blobrender.help_strings import HELP_DICT
@@ -14,7 +20,7 @@ me = measures()
 
 
 
-def wgs84_to_ecef(lat_deg, lon_deg, height_m):
+def wgs84_to_ecef(lon_deg, lat_deg, height_m):
     """
     Convert lat and long (degrees) and height / elevation (metres)
     to Earth-centred XYZ coordinates based on the WGS84 geoid.
@@ -35,6 +41,60 @@ def wgs84_to_ecef(lat_deg, lon_deg, height_m):
 
     return X, Y, Z
 
+
+def ecef_to_wgs84(X, Y, Z):
+    """
+    Convert ECEF XYZ (meters) to latitude (deg), longitude (deg), and height (meters)
+    using WGS84 ellipsoid. Vectorized and supports scalar or array input.
+    """
+    # WGS84 constants
+    a = 6378137.0
+    f = 1 / 298.257223563
+    e2 = f * (2 - f)
+    b = a * (1 - f)
+
+    # Ensure arrays
+    X = np.atleast_1d(X)
+    Y = np.atleast_1d(Y)
+    Z = np.atleast_1d(Z)
+
+    # Compute longitude
+    lon = np.arctan2(Y, X)
+
+    # Compute intermediate values
+    p = np.sqrt(X**2 + Y**2)
+    lat = np.arctan2(Z, p * (1 - e2))
+    lat_prev = lat + 2  # force entry into loop
+
+    tol = 1e-12
+    while np.max(np.abs(lat - lat_prev)) > tol:
+        lat_prev = lat
+        N = a / np.sqrt(1 - e2 * np.sin(lat)**2)
+        h = p / np.cos(lat) - N
+        lat = np.arctan2(Z, p * (1 - e2 * N / (N + h)))
+
+    N = a / np.sqrt(1 - e2 * np.sin(lat)**2)
+    h = p / np.cos(lat) - N
+
+    # Convert to degrees
+    lat_deg = np.degrees(lat)
+    lon_deg = np.degrees(lon)
+
+    # Return scalars if scalar input
+    if lat_deg.size == 1:
+        return lon_deg[0], lat_deg[0], h[0]
+    return lon_deg, lat_deg, h
+
+def geometric_mean_antenna(antennas_xyz):
+    """
+    Given a list or array of antenna ECEF XYZ coordinates (meters),
+    return the geometric mean as (longitude_deg, latitude_deg, altitude_m).
+    """
+    antennas_xyz = np.array(antennas_xyz)
+    mean_xyz = np.mean(antennas_xyz, axis=0)
+    lon, lat, alt = ecef_to_wgs84(*mean_xyz)
+    return lon, lat, alt 
+
 def main():
 
     #--------------------------------------------------------------
@@ -46,13 +106,16 @@ def main():
     update_yaml = True # Update the YAML file with the new MS name
 
 
-    #mkdir ~/.casa/data at some point if it doesn't exist
-    casa_data_dir = os.path.expanduser("~/.casa/data")
-    if not os.path.exists(casa_data_dir):
-        print(f"Creating {casa_data_dir} and restarting script...")
-        os.makedirs(casa_data_dir, exist_ok=True)
-        # Restart the script
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+    #I put this code at the top of the script to ensure that ~/.casa/data exists,
+    # before I had to restart the script but maybe now that it's at the top it's fine (tbd)
+    """
+        casa_data_dir = os.path.expanduser("~/.casa/data")
+        if not os.path.exists(casa_data_dir):
+            print(f"Creating {casa_data_dir} and restarting script...")
+            os.makedirs(casa_data_dir, exist_ok=True)
+            # Restart the script
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+    """
 
 
     yaml_file = os.path.join(CONFIGS,'default_MSbuilder.yaml')
@@ -73,20 +136,30 @@ def main():
     nchan = args.nchan #8 # number of channels
 
     # Start time and track length
-    now_utc = datetime.utcnow()
-    obs_time = now_utc.strftime("%Y/%-m/%-d/%H:%M:%S")
+    now_utc = datetime.utcnow() #this can be changed to a specific time if desired
+    obs_time = now_utc.strftime("%Y/%m/%d/%H:%M:%S") #removed -m and -d for windows compatibility
     t_int = args.t_int #'120s' # Note that this is the correlator dump time, not total track length
     start_ha = args.start_ha #'-0.2h' # Start and end times are relative to transit
     end_ha = args.end_ha #'+0.2h'
+    elevation = 1000.0 # Elevation above sea level in metres, used for antenna positions, assuming 1km for now 
+    mount_type = 'alt-az'
 
+    ### this will ONLY be used if overtly specified
+    override_reference_location = False
+    # Inferred emerlin reference point 
+    lon_deg = -2.596399       # Longitude in degrees
+    lat_deg = 53.041153       # Latitude in degrees
+    alt_m   = -6193.071004    # Ellipsoidal height in meters
+    lon_rad = np.deg2rad(lon_deg)
+    lat_rad = np.deg2rad(lat_deg)
+    reference_pos = me.position('ITRF', lon_rad, lat_rad, alt_m)
 
     #--------------------------------------------------------------
-    # Read the antenna names and coordinates (lon,lat)
-    # This could be readily modified to select only names that begin with 'M'
-    # (for a MeerKAT-only sim), or 'S' to simulate an array using only the 
-    # SKA-Mid dishes. Default is to read all.
+    # Read the antenna names and coordinates (name,lon,lat,elevation,diameter)
 
-    layout_file = os.path.join(TEL_INFO, 'SKA-Mid_antenna_layout.txt')
+
+    antenna_filename = telescopename + '.txt'
+    layout_file = os.path.join(TEL_INFO, antenna_filename)
     f = open(layout_file)
     antenna_positions = []
     antenna_names = []
@@ -94,12 +167,9 @@ def main():
     line = f.readline()
     while line:
         cols = line.split()
-        antenna_positions.append((float(cols[1]),float(cols[2]),1000.0)) # Assuming 1km above sea level
+        antenna_positions.append((float(cols[1]),float(cols[2]),float(cols[3]))) 
         antenna_names.append(cols[0])
-        if cols[0][0] == 'M':
-            antenna_diameters.append(float(13.5))
-        elif cols[0][0] == 'S':
-            antenna_diameters.append(float(15.0))
+        antenna_diameters.append(float(cols[4])) # Diameter in metres
         line = f.readline()
     f.close()
 
@@ -111,11 +181,13 @@ def main():
     ant_x = []
     ant_y = []
     ant_z = []
+
     for i, (lon, lat, elev) in enumerate(antenna_positions):
-        X, Y, Z = wgs84_to_ecef(lat, lon, elev)
+        X, Y, Z = wgs84_to_ecef(lon, lat, elev)
         ant_x.append(X)
         ant_y.append(Y)
         ant_z.append(Z)
+        antennas_xyz.append((X, Y, Z))
 
 
     #--------------------------------------------------------------
@@ -132,16 +204,34 @@ def main():
     sm.open(ms = ms_name)
 
     # Antenna configuration
-    # Use MeerKAT as the reference location since CASA knows about it
-    sm.setconfig(telescopename = 'MeerKAT',
-                    x = ant_x,
-                    y = ant_y,
-                    z = ant_z,                 
-                    dishdiameter = antenna_diameters,
-                    mount = ['alt-az'],
-                    antname = antenna_names,
-                    coordsystem = 'global',
-                    referencelocation = me.observatory('MeerKAT'))
+
+    if override_reference_location:
+            array_center = reference_pos
+    else:
+        # Use MeerKAT as the reference location since CASA knows about it
+        if telescopename == 'SKA-Mid' or telescopename == 'MeerKAT':
+            # For SKA-Mid, we assume the MeerKAT configuration
+            array_center = me.observatory('MeerKAT')    
+        elif telescopename == 'eMERLIN':
+            array_center = me.observatory('e-MERLIN')  
+        elif telescopename in [obs.upper for obs in me.obslist()]:
+            #if its not emerlin or meerkat, but it is a known observatory 
+            array_center = me.observatory(telescopename) 
+        else:
+            # If the telescope is not a known observatory, we use the geometric mean of the antenna positions
+            array_mean = geometric_mean_antenna(antennas_xyz)
+            array_center = me.position('ITRF', *array_mean)
+    # Set the antenna configuration
+    sm.setconfig(telescopename = telescopename,
+                        x = ant_x,
+                        y = ant_y,
+                        z = ant_z,                 
+                        dishdiameter = antenna_diameters,
+                        mount = [mount_type],
+                        antname = antenna_names,
+                        coordsystem = 'global',
+                        referencelocation = array_center)
+
 
     # Polarisation mode, assuming perfect linear feeds
     sm.setfeed(mode = 'perfect X Y', pol = [''])
@@ -162,6 +252,7 @@ def main():
 
     # Flag based on shadowing or elevation limits
     sm.setlimits(shadowlimit = 0.01, elevationlimit = '12deg')
+    #currently these are set somewhat arbitrarily. should be set to realistic values for the telescope in question
 
     # Ditch the autocorrelations
     sm.setauto(autocorrwt = 0.0);
@@ -170,6 +261,8 @@ def main():
     sm.settimes(integrationtime = t_int,
                 usehourangle = True,
                 referencetime = me.epoch('UTC',obs_time))
+    #reference time refers to the time at which the source will transit the local meridian
+    #usehourangle = True means that the start and end times are relative to the source transit time
 
     # Generate u,v,w tracks
     sm.observe(sourcename = source_name,
