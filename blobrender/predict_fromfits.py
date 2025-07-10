@@ -13,25 +13,6 @@ from blobrender.help_strings import HELP_DICT
 
 #timestep is just for naming conventions 
 
-def singularity_setup(use_remote=True):
-    wsclean_sif = os.path.join(CONTAINERS, "wsclean-1.6.3.sif")
-    if not os.path.exists(wsclean_sif):
-        print(f"Singularity container not found at {wsclean_sif}. Pulling from DockerHub...")
-        os.makedirs(CONTAINERS, exist_ok=True)
-        if use_remote:
-            # Remote build: output file must be in CONTAINERS
-            build_cmd = [
-                "singularity", "build", "--remote", wsclean_sif, "docker://stimela/wsclean:1.6.3"
-            ]
-            subprocess.run(build_cmd, check=True)
-        else:
-            pull_cmd = [
-                "singularity", "pull", f"--dir={CONTAINERS}", "docker://stimela/wsclean:1.6.3"
-            ]
-            subprocess.run(pull_cmd, check=True)
-        print("Singularity container downloaded.")
-    singularity = 'singularity exec --bind $HOME '+wsclean_sif+' '
-    return singularity
 
 def main():
 
