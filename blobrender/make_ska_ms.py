@@ -10,6 +10,11 @@ from datetime import datetime
 
 import numpy as np
 import sys
+from astropy.coordinates import EarthLocation, Angle
+from astropy.time import Time
+import astropy.units as u
+
+
 from blobrender import tools
 from blobrender.help_strings import HELP_DICT
 from blobrender.paths import TEL_INFO, CONFIGS
@@ -95,6 +100,40 @@ def geometric_mean_antenna(antennas_xyz):
     lon, lat, alt = ecef_to_wgs84(*mean_xyz)
     return lon, lat, alt 
 
+
+def compute_obs_time(ra_str, start_ha_str, obs_date, site_lon):
+    """
+    Compute the UTC observation time given RA, start HA, observing date, and observatory longitude.
+
+    Parameters:
+        ra_str (str): Right Ascension (e.g., '18h20m21.938s')
+        start_ha_str (str): Start Hour Angle (e.g., '-0.2h')
+        obs_date (str): Observation date 'YYYY-MM-DD'
+        site_lon (float): Observatory longitude in radians 
+
+    Returns:
+        str: UTC observation time (YYYY/MM/DD/HH:MM:SS)
+    """
+    # Convert inputs
+    site_lon_deg = np.degrees(site_lon)
+    ra = Angle(ra_str)
+    start_ha = Angle(start_ha_str)
+    lst_target = (ra + start_ha).wrap_at(12 * u.hourangle)
+
+    # Observatory location (latitude is not needed for LST)
+    location = EarthLocation(lat=0*u.deg, lon=site_lon_deg*u.deg)  # lat dummy here
+
+    # Initial time guess near midnight
+    t_guess = Time(f"{obs_date} 00:00:00", scale='utc', location=location)
+
+    # Compute time offset to reach desired LST
+    delta_lst = (lst_target - t_guess.sidereal_time('apparent')).wrap_at(12 * u.hourangle)
+    delta_sec = delta_lst.hour * 3600
+    t_start = t_guess + delta_sec * u.s
+
+    return t_start.utc.strftime("%Y/%m/%d/%H:%M:%S")
+
+
 def main():
 
     #--------------------------------------------------------------
@@ -132,12 +171,25 @@ def main():
 
     # Frequency setup
     f0 = args.f0 #'856MHz' # lowest band frequency
-    df = args.df #'107MHz' # channel width
+    bandwidth = args.bandwidth #total bandwidth in MHz
     nchan = args.nchan #8 # number of channels
+    df = (f0 + bandwidth)/ (nchan-1.0) # channel width in MHz
 
     # Start time and track length
-    now_utc = datetime.utcnow() #this can be changed to a specific time if desired
-    obs_time = now_utc.strftime("%Y/%m/%d/%H:%M:%S") #removed -m and -d for windows compatibility
+
+
+    #####now_utc = datetime.utcnow() #this can be changed to a specific time if desired
+    #####obs_time = now_utc.strftime("%Y/%m/%d/%H:%M:%S") #removed -m and -d for windows compatibility
+    
+    obs_date = datetime.utcnow().strftime("%Y-%m-%d") # Observation date in YYYY-MM-DD format
+    #changing the start reference time so that it corresponds to the correct transit time, this requires knowing
+    #location of the telescope so will do later on. 
+    #for now just specifying the date and working out the compatible time later
+    #will include this as a yaml option later
+
+
+
+
     t_int = args.t_int #'120s' # Note that this is the correlator dump time, not total track length
     start_ha = args.start_ha #'-0.2h' # Start and end times are relative to transit
     end_ha = args.end_ha #'+0.2h'
@@ -212,7 +264,7 @@ def main():
         if telescopename == 'SKA-Mid' or telescopename == 'MeerKAT':
             # For SKA-Mid, we assume the MeerKAT configuration
             array_center = me.observatory('MeerKAT')    
-        elif telescopename == 'eMERLIN':
+        elif telescopename == 'e-MERLIN':
             array_center = me.observatory('e-MERLIN')  
         elif telescopename in [obs.upper for obs in me.obslist()]:
             #if its not emerlin or meerkat, but it is a known observatory 
@@ -238,6 +290,10 @@ def main():
 
     # Spectral window and associated pol config
     # Can be called repeatedly for multiple SPWs
+
+    f0 =f"{f0}MHz" # lowest band frequency in MHz
+    df = f"{df}MHz" # channel width in MHz
+
     sm.setspwindow(spwname = "SPW0",
                 freq = f0,
                 deltafreq = df,
@@ -258,6 +314,16 @@ def main():
     sm.setauto(autocorrwt = 0.0);
 
     # Set the reference time and integration time
+
+    #to set the reference time we need to know the telescope longitude
+    tel_lon = array_center['m0']['value']
+    obs_time = compute_obs_time(source_ra, start_ha, obs_date, tel_lon)
+
+
+
+
+
+
     sm.settimes(integrationtime = t_int,
                 usehourangle = True,
                 referencetime = me.epoch('UTC',obs_time))
