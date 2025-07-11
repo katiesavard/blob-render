@@ -38,6 +38,8 @@ def main():
 	container_name = args.container_name
 	container_type = args.container_type
 
+	nchannels = '4'
+
 
 	#some specific requirements that I need to figure out how they depend on the telescope 
 	column ='CORRECTED_DATA'
@@ -48,19 +50,24 @@ def main():
 	
 	cont = os.path.join(CONTAINERS,container_name)
 	container_type_lower = str(container_type).lower()
+
+	### we are assuming that you will run this script from inside blob-render and so
+	### there is a results folder under you. This may need to be more flexble in the future
+	### but works for now lol
+
 	if container_type_lower == 'singularity':
-		container_setup = 'singularity exec --bind $HOME ' + cont + ' '
+		container_setup = f'singularity exec --bind {os.getcwd()} ' + cont + ' '
 	elif container_type_lower == 'docker':
-		container_setup = 'docker run --rm -v $HOME:/home/user -w /home/user ' + cont + ' '
+		container_setup = f'docker run --rm -v {os.getcwd()}:/home/user -w /home/user ' + container_name + ' '
 	elif container_type_lower == 'none':
 		container_setup = ''
 	else:
 		raise ValueError(f"Unknown container type: {container_type}. Use 'singularity', 'docker', or 'none'")
 
 	bash_runfile = 'run_predict.sh'
-	predict_file_name = os.path.join(RESULTS,'brender_'+telescopename+'_inpmodel_'+timestep)
-	image_file_name = os.path.join(RESULTS,'brender_'+telescopename+'_modimage_'+timestep)
-	imagesum_file_name = os.path.join(RESULTS,'brender_'+telescopename+'_sumimage_'+timestep)
+	predict_file_name = os.path.join('results','brender_'+telescopename+'_inpmodel_'+timestep)
+	image_file_name = os.path.join('results','brender_'+telescopename+'_modimage_'+timestep)
+	imagesum_file_name = os.path.join('results','brender_'+telescopename+'_sumimage_'+timestep)
 
 
 	f = open(bash_runfile,'w')
@@ -73,20 +80,15 @@ def main():
 	
 	#clean with 0 iterations: create fits file images with dirty visibilities but the right dimensions
 	f.write('printf "creating model\n" \n')
-	f.write(container_setup+'wsclean -size '+xpix+' '+ypix+' -scale '+scale+'asec -niter 0 -channels-out 1 '+reorder+' -name '+predict_file_name+' -data-column '+column+' -use-wgridder -mem '+mem+' '+split_ms_name+'\n')
+	f.write(container_setup+'wsclean -size '+xpix+' '+ypix+' -scale '+scale+'asec -niter 0 -channels-out '+nchannels+' '+reorder+' -name '+predict_file_name+' -data-column '+column+' -use-wgridder -mem '+mem+' '+split_ms_name+'\n')
 	
-	#write in the correct filenames into populatefits.py
-	#f.write(f'{sed_inplace} \"s/model_fits.*fits\'/model_fits = \''+fitsfile_name+'\'/g" populatefits.py\n')
-	#f.write(f'{sed_inplace} \"s/wsclean_fits.*fits\'/wsclean_fits = \''+predict_file_name+'-image.fits\'/g" populatefits.py\n')
-	#f.write(f'{sed_inplace} \"s/op_fits.*fits\'/op_fits = \''+predict_file_name+'-model.fits\'/g" populatefits.py\n')
-
+	#create a -model fits file with the simulated data in it with the same format as the -image file produced from the previous cleaning step 
 	f.write(
     	f"python3 -m blobrender.tools.populatefits --model_fits {fitsfile_name} "
     	f"--wsclean_fits {predict_file_name}-image.fits "
-    	f"--op_fits {predict_file_name}-model.fits \n"
+    	f"--op_fits {predict_file_name}-model.fits "
+		f"--nchan {nchannels}\n"
 	)
-	#bulldoze the dirty fits files with the data from simulation
-	#f.write("python3 populatefits.py\n")
 	
 	#change the RA and DEC of the model fits files to the desired position
 	if reposition_model:
@@ -96,12 +98,12 @@ def main():
 		f.write("python3 -m blobrender.tools.change_RADEC_fits "+predict_file_name+'-dirty.fits '+newRA+' '+newDEC+'\n')
 	
 	#predict model visibilities
-	f.write('printf "predicting model visibilities\n" \n')
-	f.write(container_setup+'wsclean -predict -mem '+mem+' -size '+xpix+' '+ypix+' -scale '+scale+'asec -channels-out 1 '+reorder+' -name '+predict_file_name+' -use-wgridder '+split_ms_name+'/\n')
+	#f.write('printf "predicting model visibilities\n" \n')
+	#f.write(container_setup+'wsclean -predict -mem '+mem+' -size '+xpix+' '+ypix+' -scale '+scale+'asec -channels-out 1 '+reorder+' -name '+predict_file_name+' -use-wgridder '+split_ms_name+'/\n')
 		
 	#image the model visibilities
-	f.write('printf "imaging model data with no noise\n" \n')
-	f.write(container_setup+'wsclean -mem 80 -mgain 0.9 -gain 0.15 -size 1024 1024 -scale '+imscale+' -niter 1000 -channels-out 1 -no-update-model-required '+reorder+' -name '+image_file_name+' -data-column MODEL_DATA '+field+' -use-wgridder '+split_ms_name+'\n')
+	#f.write('printf "imaging model data with no noise\n" \n')
+	#f.write(container_setup+'wsclean -mem 80 -mgain 0.9 -gain 0.15 -size 1024 1024 -scale '+imscale+' -niter 1000 -channels-out 1 -no-update-model-required '+reorder+' -name '+image_file_name+' -data-column MODEL_DATA '+field+' -use-wgridder '+split_ms_name+'\n')
 	
 	#add together model and real data
 	if add_noise:
