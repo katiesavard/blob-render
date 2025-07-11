@@ -173,7 +173,7 @@ def main():
     f0 = args.f0 #'856MHz' # lowest band frequency
     bandwidth = args.bandwidth #total bandwidth in MHz
     nchan = args.nchan #8 # number of channels
-    df = (f0 + bandwidth)/ (nchan-1.0) # channel width in MHz
+    df = (bandwidth)/ (nchan-1.0) # channel width in MHz
 
     # Start time and track length
 
