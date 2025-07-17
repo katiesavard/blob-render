@@ -8,7 +8,7 @@
 <p align="center">
   <img src="./cosmic_quack_of_protest.png" alt="A cosmic duck in protest, representing the spirit of blobrender" width="400"/>
   <br>
-  <em>A cosmic duck in protest, representing the spirit of blobrender</em>
+  <em>A cosmic goose in protest, representing the spirit of blobrender</em>
 </p>
 
 
