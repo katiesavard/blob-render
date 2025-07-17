@@ -5,6 +5,11 @@
 
 **blobrender** is a python package for turning simulations into realistic radio images.
 
+<p align="center">
+  <img src="./cosmic_quack_of_protest.png" alt="A cosmic duck in protest, representing the spirit of blobrender" width="400"/>
+  <br>
+  <em>A cosmic duck in protest, representing the spirit of blobrender</em>
+</p>
 
 
 ---
