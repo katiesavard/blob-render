@@ -1,8 +1,6 @@
 Bootstrap: docker
 From: ubuntu:22.04
 Stage: build
-
-
 %post
     echo "Here we are installing software and other dependencies for the container!"
     apt update -y
@@ -18,7 +16,10 @@ Stage: build
       libboost-program-options-dev libboost-system-dev \
       libcfitsio-dev libfftw3-dev libgsl-dev \
       libhdf5-dev liblapack-dev libopenmpi-dev \
-      libpython3-dev pkg-config
+      libpython3-dev pkg-config python3-pip python3-casacore
+    # Install some python shit
+    python3 -m pip install --upgrade pip
+    python3 -m pip install "numpy==1.26.*" "astropy>=6.1.7,<7.0" "scipy>=1.14,<1.15" "matplotlib>=3.6,<3.8"
     # Install wsclean
         git clone -b v3.5 https://gitlab.com/aroffringa/wsclean.git
         cd wsclean
