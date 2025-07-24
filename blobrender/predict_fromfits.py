@@ -4,7 +4,8 @@ import stat
 from . import tools
 import numpy as np
 
-from .paths import CONFIGS, CONTAINERS, RESULTS
+
+from .paths import CONFIGS, CONTAINERS, TEL_INFO
 from blobrender.help_strings import HELP_DICT
 
 
@@ -13,8 +14,6 @@ from blobrender.help_strings import HELP_DICT
 #populate the scale and pix from the format of the fits file
 
 #timestep is just for naming conventions 
-
-
 
 
 
@@ -42,15 +41,30 @@ def main():
 	container_name = args.container_name
 	container_type = args.container_type
 
-	nchannels = '1'
-	pixels_per_beam = 10
+	# these are from the MS builder YAML file
+	nchannels = '32'
+	delta_nu = '62.5e6'  # Bandwidth per channel in Hz
+	t_int = '4.0'  # Integration time in seconds
+	pixels_per_beam = '4'  # Number of pixels per beam
+	add_field = False
 
+	### check that the pixel size and FOV of your model image are appropriate for the telescope you are using
+	
+	min_frequency, max_frequency = tools.get_min_max_frequency(split_ms_name)
+	min_b, max_b = tools.baseline_range_from_ms(split_ms_name)
+	good_pixel_size, max_pix = tools.check_image_pixelsize(float(scale), max_b, max_frequency)
+	if not good_pixel_size:
+		raise ValueError(f"HONQUE HONQUE! Pixel size {scale} arcsec is too large for the maximum baseline {max_b:.2f} m at frequency {max_frequency/1e6:.3f} MHz. Reduce pixel size of your image to {max_pix:.2f}\" .. or else.")
+	fov = min(float(xpix), float(ypix))*float(scale)  # field of view in arcseconds
+	good_fov, min_fov = tools.check_image_fov(fov, min_b, min_frequency)
+	print(fov, min_fov)
+	if not good_fov:
+		raise ValueError(f"HONQUE HONQUE! Field of view {fov} arcsec is too small for the minimum baseline {min_b:.2f} m at frequency {min_frequency/1e6:.3f} MHz. Increase field of view of your image to at least {min_fov:.3f}\" .. or else.")
+	
 
 	#some specific requirements that I need to figure out how they depend on the telescope 
-	column ='CORRECTED_DATA'
 	reorder='-reorder' #blank for no reorder
 	field = '' #blank for split dataset 
-	imscale='5mas' #imaging scale for cleaning (some fraction of the beam)
 	mem=str(50) #memory for wsclean
 	
 	cont = os.path.join(CONTAINERS,container_name)
@@ -85,7 +99,7 @@ def main():
 	
 	#clean with 0 iterations: create fits file images with dirty visibilities but the right dimensions
 	f.write('printf "creating model\n" \n')
-	f.write(container_setup+'wsclean -size '+xpix+' '+ypix+' -scale '+scale+'asec -niter 0 -make-psf -channels-out '+nchannels+' '+reorder+' -name '+predict_file_name+' -data-column '+column+' -use-wgridder -mem '+mem+' '+split_ms_name+'\n')
+	f.write(container_setup+'wsclean -size '+xpix+' '+ypix+' -scale '+scale+'asec -niter 0 -make-psf -channels-out '+nchannels+' '+reorder+' -name '+predict_file_name+' -data-column DATA -use-wgridder -mem '+mem+' '+split_ms_name+'\n')
 	
 	#create a -model fits file with the simulated data in it with the same format as the -image file produced from the previous cleaning step 
 	f.write(
@@ -107,15 +121,26 @@ def main():
 	f.write(container_setup+'wsclean -predict -mem '+mem+' -size '+xpix+' '+ypix+' -scale '+scale+'asec -channels-out '+nchannels+' '+reorder+' -name '+predict_file_name+' -use-wgridder '+split_ms_name+'/\n')
 	
 	#estimate the beam size from the PSF fits file
-	f.write('pixscale=$(python3 -m blobrender.tools.calc_beamsize --fitsfile ' + predict_file_name + '-psf.fits --pixels_per_beam ' + str(pixels_per_beam) + ')\n')
-	f.write('echo "Pixel scale is $pixscale"\n')
+	f.write('pixscale=$(python3 -m blobrender.tools.calc_beamsize --fitsfile '+predict_file_name+' --pixels_per_beam '+pixels_per_beam+' --nchan '+nchannels+')\n')
+	f.write('echo "Pixel scale is $pixscale arcseconds"\n')
+
+	###add noise to the model visibilities
+	if add_noise:
+		f.write('printf "adding noise to model visibilities\n" \n')
+		#load the sefd config file
+		sefd_dict = os.path.join('telescope_info','{}_SEFD.yaml'.format(telescopename))
+		#f.write(container_setup+'python3 blobrender/tools/add_MS_column.py --ms_path '+split_ms_name+' --modelcol MODEL_DATA --newcol NOISY_MODEL2\n')
+		f.write(container_setup+'python3 blobrender/tools/add_noise_pyrap.py --ms_path '+split_ms_name+' --sefd_dict_filename '+sefd_dict+' --delta_nu '+delta_nu+' --t_int '+t_int+' --column MODEL_DATA\n')
+		f.write('printf "noise added to model visibilities\n" \n')
+
+
 
 	#image the model visibilities
-	f.write('printf "imaging model data with no noise\n" \n')
-	f.write(container_setup+'wsclean -mem 80 -mgain 0.9 -gain 0.15 -size 1024 1024 -scale ${pixscale}asec -niter 1000 -channels-out 1 -no-update-model-required '+reorder+' -name '+image_file_name+' -data-column MODEL_DATA '+field+' -use-wgridder '+split_ms_name+'\n')
+	f.write('printf "imaging model data \n" \n')
+	f.write(container_setup+'wsclean -mem 80 -mgain 0.9 -gain 0.15 -size 1024 1024 -scale ${pixscale}asec -niter 10000 -auto-mask 3 -auto-threshold 0.3 -channels-out 1 -no-update-model-required '+reorder+' -name '+image_file_name+' -data-column MODEL_DATA '+field+' -use-wgridder '+split_ms_name+'\n')
 	
 	#add together model and real data
-	if add_noise:
+	if add_field:
 		f.write('printf "adding model to real data\n" \n')
 		f.write(container_setup+'python3 -m blobrender.tools.add_MS_column '+split_ms_name+' --colname DATA_MODEL_SUM\n')
 		f.write(container_setup+'python3 -m blobrender.tools.copy_MS_column '+split_ms_name+' --fromcol CORRECTED_DATA --tocol DATA_MODEL_SUM\n')
@@ -128,7 +153,7 @@ def main():
 		f.write(container_setup+'chgcentre -datacolumn DATA_MODEL_SUM '+split_ms_name+' 18h20m21.938s 07d11m07.177s\n')  #DATA_MODEL_SUM 
 	
 	#image the model+data according to emerlin recommended params
-	if add_noise:
+	if add_field:
 		f.write('printf "imaging model + data\n" \n')
 		f.write(container_setup+'wsclean -mem 80 -mgain 0.8 -gain 0.15 -size 5000 5000 -scale 5masec -niter 10000 -channels-out 1 -no-update-model-required -reorder -name '
 		+imagesum_file_name+' -weight briggs 0.8 -data-column DATA_MODEL_SUM -use-wgridder '+split_ms_name+'\n')
@@ -138,6 +163,7 @@ def main():
 	os.chmod(bash_runfile,stat.S_IRWXU)
 	#run bash file 
 	subprocess.call("./"+bash_runfile)
+	
 
 if __name__ == "__main__":
     main()
