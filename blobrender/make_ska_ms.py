@@ -342,6 +342,7 @@ def main():
     if update_yaml:
         yaml_path = os.path.join(CONFIGS,'default_prediction.yaml')
         tools.update_yaml('ms_name',ms_name,yaml_path)
+        tools.update_yaml('telescopename',telescopename,yaml_path)
 
 if __name__ == "__main__":
     main()
