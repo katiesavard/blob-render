@@ -58,20 +58,45 @@ def recommend_pixel_scale(beam_major_arcsec, beam_minor_arcsec=None, pixels_per_
         scale = (beam_major_arcsec * beam_minor_arcsec)**0.5 / pixels_per_beam
     return scale
 
+
+def beam_header_extract(fitsfile,nchan):
+    bmajs = []
+    bmins = []
+    bpas = []
+
+    for channel in range(nchan):
+        chanfile = f'{fitsfile}-{channel:04d}-psf.fits'
+        with fits.open(chanfile) as hdul:
+            hdr = hdul[0].header
+            #for key, value in hdr.items():
+            #    print(f"{key}: {value}")
+            bmaj = hdr.get('BMAJ')*3600
+            bmin = hdr.get('BMIN')*3600
+            bpa  = hdr.get('BPA')
+            bmajs.append(bmaj)
+            bmins.append(bmin)
+            bpas.append(bpa)
+    fwhm_x = min(bmajs)
+    indx = np.argmin(bmajs)
+    fwhm_y = bmins[indx]
+    pa_deg = bpas[indx]
+    return fwhm_x, fwhm_y, pa_deg
+
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(description='Calculate the beam size from a FITS file.')
     parser.add_argument('--fitsfile', type=str, required=True, help='Path to the FITS file containing the PSF.')
     parser.add_argument('--pixels_per_beam', type=int, default=4, help='Number of pixels per beam (default: 4).')
-
+    parser.add_argument('--nchan', type=int, default=1, help='Number of channels.')
     args = parser.parse_args()
 
     fitsfile = args.fitsfile
     pixels_per_beam = args.pixels_per_beam
-    fwhm_x, fwhm_y, pa_deg = fit_psf_beam(fitsfile)
-    major = max(fwhm_x, fwhm_y)
-    minor = min(fwhm_x, fwhm_y)
+    #fwhm_x, fwhm_y, pa_deg = fit_psf_beam(fitsfile)
+    #major = max(fwhm_x, fwhm_y)
+    #minor = min(fwhm_x, fwhm_y)
+    major, minor, pa_deg = beam_header_extract(fitsfile,nchan=args.nchan)
     pixscale = recommend_pixel_scale(major,minor,pixels_per_beam)
     print(pixscale)
 
