@@ -4,20 +4,26 @@ import numpy.testing as npt
 
 
 @pytest.mark.parametrize(
-    "test, expected",
+    "image",
     [
-        (),
-        ()
-    ])
-def test_deres_array(test, expected):
+        np.add.outer(np.arange(10), np.arange(10)),
+    ],
+)
+def test_deres_array_preserves_square_pixels(image):
     """
-    Test the deres_array function with different inputs.
+    If row and column resolutions are already equal,
+    deres_array_check should leave the array unchanged.
     """
-    from blobrender.fits_conversion import deres_array_check
-    # Call the function with the test input
-    image, output = deres_array_check(test)
 
-    # Check if the result matches the expected output
-    npt.assert_array_equal(image, expected)
-    # Check if the result matches the expected output
+    from blobrender.fits_conversion import deres_array_check
+
+    result, output = deres_array_check(
+        image,
+        verbose=False,
+        output_string=""
+    )
+
+    npt.assert_array_equal(result, image)
+
+    assert "square" in output.lower()
     
