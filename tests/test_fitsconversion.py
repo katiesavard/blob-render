@@ -10,10 +10,10 @@
 #    ],
 #)
 #def test_deres_array_preserves_square_pixels(image):
-    """
-    If row and column resolutions are already equal,
-    deres_array_check should leave the array unchanged.
-    """
+#    """
+#    If row and column resolutions are already equal,
+#    deres_array_check should leave the array unchanged.
+#    """
 
 #    from blobrender.fits_conversion import deres_array_check
 
