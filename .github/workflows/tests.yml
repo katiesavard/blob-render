@@ -21,7 +21,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install pytest numpy scipy astropy
+        pip install pytest numpy scipy astropy pillow
 
     - name: Run tests
       run: |
