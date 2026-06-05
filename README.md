@@ -17,7 +17,7 @@
 
 ---
 
-### ❗️ caution y'all❗️
+### ❗️ caution ❗️
 
 This project is still **currently under development** and does contain bugs. Use at your own risk and please report unexpected behavior to [the author](mailto:katherine.savard@physics.ox.ac.uk). **Fully tested pipeline predicted to be ready for use early September 2026 -- watch this code (select 'Releases only') to be notified when the first stable version is available, as well as subsequent versions with wider capabilities**.
 
