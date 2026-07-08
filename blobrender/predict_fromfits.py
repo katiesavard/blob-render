@@ -7,6 +7,12 @@ import numpy as np
 
 from .paths import CONFIGS, CONTAINERS, TEL_INFO
 from blobrender.help_strings import HELP_DICT
+from blobrender.tools.image_checks import (
+	baseline_range_from_ms,
+	check_image_fov,
+	check_image_pixelsize,
+	get_min_max_frequency,
+)
 
 
 #assumes you have fitsfile and split-MS in current directory 
@@ -50,13 +56,13 @@ def main():
 
 	### check that the pixel size and FOV of your model image are appropriate for the telescope you are using
 	
-	min_frequency, max_frequency = tools.get_min_max_frequency(split_ms_name)
-	min_b, max_b = tools.baseline_range_from_ms(split_ms_name)
-	good_pixel_size, max_pix = tools.check_image_pixelsize(float(scale), max_b, max_frequency)
+	min_frequency, max_frequency = get_min_max_frequency(split_ms_name)
+	min_b, max_b = baseline_range_from_ms(split_ms_name)
+	good_pixel_size, max_pix = check_image_pixelsize(float(scale), max_b, max_frequency)
 	if not good_pixel_size:
 		raise ValueError(f"HONQUE HONQUE! Pixel size {scale} arcsec is too large for the maximum baseline {max_b:.2f} m at frequency {max_frequency/1e6:.3f} MHz. Reduce pixel size of your image to {max_pix:.2f}\" .. or else.")
 	fov = min(float(xpix), float(ypix))*float(scale)  # field of view in arcseconds
-	good_fov, min_fov = tools.check_image_fov(fov, min_b, min_frequency)
+	good_fov, min_fov = check_image_fov(fov, min_b, min_frequency)
 	print(fov, min_fov)
 	if not good_fov:
 		raise ValueError(f"HONQUE HONQUE! Field of view {fov} arcsec is too small for the minimum baseline {min_b:.2f} m at frequency {min_frequency/1e6:.3f} MHz. Increase field of view of your image to at least {min_fov:.3f}\" .. or else.")

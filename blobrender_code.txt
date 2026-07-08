@@ -1,0 +1,3496 @@
+===== ./blobrender/__init__.py =====
+
+===== ./blobrender/fits_conversion.py =====
+import sys
+import numpy as np
+from astropy.io import fits
+import os
+import yaml
+import argparse
+from PIL import Image
+
+from .paths import PLOTS, CONFIGS, SIM_DAT
+from . import tools
+from blobrender.help_strings import HELP_DICT
+
+
+def deres_array_check(image,verbose,output_string):
+    """
+    Check if the image needs to be deresolutioned. (blobrender requires square pixels)
+    It checks the resolution of the image in both x and y directions, and if they are not equal,
+    it will remove every x rows or columns from the image to make them equal.
+
+    Args:
+        image (array): image array
+        verbose (bool): if True, print to screen
+        output_string (string): logging string
+
+    Returns:
+        image (array): adjusted array
+        output_string (string): logging string
+    """
+    #check if needs a deres
+    column_resolution = image[1][5]-image[1][4]
+    row_resolution = image[5][1]-image[4][1]
+    if row_resolution==column_resolution:
+        output = print_and_save('square elements, no need to de-res',output_string,verbose)
+    else:
+        if row_resolution>column_resolution:
+            output_temp = print_and_save('deres row',output_string,verbose)
+            resolution_difference = row_resolution/column_resolution
+            image = np.array(deres_array(image,resolution_difference,axis='row'))
+            output = print_and_save('New shape: '+str(np.shape(image)),output_temp,verbose)
+        else:
+            output_temp = print_and_save('deres column',output_string,verbose)
+            resolution_difference = column_resolution/row_resolution
+            image = np.array(deres_array(image,resolution_difference,axis='column'))
+            output = print_and_save('New shape: '+str(np.shape(image)),output_temp,verbose)
+    return image, output
+
+def even_shape_check(image,verbose,output_string):
+    row_len = len(image[0])
+    column_len = len(image.T[0])
+    even = True
+    if row_len%2==1:
+        even=False
+        output = print_and_save('adding another column',output_string,verbose)
+        image = adjust(image,axis='column')
+    if column_len%2==1:
+        even=False
+        output = print_and_save('adding another row',output_string,verbose)
+        image = adjust(image,axis='row') 
+    if even:
+        output = print_and_save("image has even sides, no need to adjust",output_string,verbose)
+    return image, output
+
+def adjust(image_array,axis='row'): 
+    #adds on an extra row
+    #if it needs reshaping for wsclean (odd numbers)
+    if axis=='row':
+        z = [0]*(len(image_array.T))
+        new_image = np.row_stack([z,image_array])
+    elif axis=='column':
+        z = [0]*(len(image_array))
+        new_image = np.column_stack([z,image_array])
+    return new_image
+
+def deres_array(image_array,res,axis='row'): 
+    #remove every x=res rows from array
+    #if its higher resolution on one axis (to make pixels square)
+    new_lum_array = []
+    if axis=='row':
+        for index, row in enumerate(image_array):
+            if index%res==1:
+                new_lum_array.append(row)
+    elif axis=='column':
+        for index, column in enumerate(image_array.T):
+            if index%res==1:
+                new_lum_array.append(column)
+
+    return new_lum_array
+
+def unit_print(xres,yres,L_sim,distance_in_pc,outstring,verbose):
+    #now check what the resolution size is in real units for wsclean:
+    x = tools.m_to_arcseconds(L_sim*xres,distance_in_pc)
+    y = tools.m_to_arcseconds(L_sim*yres,distance_in_pc)
+
+    outstring = print_and_save('x-direction res: {:.4f} arcseconds'.format(x),outstring,verbose)
+    outstring = print_and_save('y-direction res: {:.4f} arcseconds'.format(y),outstring,verbose)
+    return outstring, x
+
+def print_and_save(string,output,verbose):
+    if verbose: print(string)
+    output+=string+'\n'
+    return output
+
+def load_image_or_npy(data_folder,filename):
+    filepath = os.path.join(data_folder,filename)
+    name, ext = os.path.splitext(filename)
+    ext = ext.lower() 
+    if ext == ".npy":
+        image_array = tools.load_list(data_folder,name)
+        return image_array
+    else:
+        image_array = np.flipud(tools.rgb2gray(np.array(Image.open(filepath)))) 
+        return image_array
+    
+def main():
+
+    ##############       defining variables       ############################
+
+    verbose = True #prints to screen as well as to file
+    update_yaml = True #update the yaml file with the new fits name
+    reflect_image = False
+    adjust_image = False
+
+     # Load defaults from YAML
+
+    yaml_file = os.path.join(CONFIGS,'default_simulation.yaml')
+    description = "Convert simulation outputs (numpy or image format) to FITS images for use with blobrender." \
+    "   Handles reshaping and resolution checks to make appropriate input to the prediction stafe." \
+    "   Default values from default_prediction.yaml, unless otherwise specified with --config. Updates default_prediction.yaml accordingly." \
+
+    args = tools.get_arguments(yaml_file,HELP_DICT,description)
+    
+
+    # Unpack arguments
+    system_name = args.system_name
+    nu_observe = args.nu_observe
+    L_sim = args.L_sim
+    distance_in_pc = args.distance_in_pc
+    xres = args.xresolution
+    yres = args.yresolution
+    image_filename = args.image_filename
+
+    
+    
+
+    ##############       setup       ############################
+    #filenames
+    
+    data_folder = SIM_DAT
+    output_string = '' #logging string
+
+    #user checks
+    output_string = print_and_save("System = "+system_name,output_string,verbose)
+
+    if verbose:
+        inp = input("Continue with current setup? (y/n) : ")
+        if inp=='y':
+            print("")
+        else:
+            return
+
+
+
+    #load in data
+    image_array = load_image_or_npy(SIM_DAT,image_filename)
+
+    if reflect_image:
+        image_array_flip = np.concatenate((np.flip(image_array,axis=1),np.array(image_array)),axis=1)
+    else:
+        image_array_flip = image_array 
+
+    ##############       reshape array       ############################
+    output_string = print_and_save('Array shape: '+str(np.shape(image_array_flip)),output_string,verbose)
+
+    if adjust_image:
+        #deres if needs
+        image_array, output_string = deres_array_check(image_array_flip,verbose,output_string)
+
+        #make even if needs
+        image_array, output_string = even_shape_check(image_array,verbose,output_string)
+
+    output_string = print_and_save('Array shape after adjustments: '+str(np.shape(image_array)),output_string,verbose) #input to wsclean
+    nxpix = image_array.shape[0]
+    nypix = image_array.shape[1]
+
+    ##############       save to fits       ############################
+    hdu = fits.PrimaryHDU(image_array)
+
+    exta_descriptors=''
+    fits_name = 'fits_'+system_name+'_'+str(nu_observe/1e9)+'GHz'+exta_descriptors+'.fits'
+    save_to = data_folder+'/'+fits_name
+    hdu.writeto(save_to,overwrite=True)
+
+
+    #now check what the resolution size is in real units for wsclean:
+    output_string, xasec = unit_print(xres,yres,L_sim,distance_in_pc, output_string,verbose) #input to wsclean
+
+    if update_yaml:
+        #update the yaml file with the new fits name
+        yaml_path = os.path.join(CONFIGS,'default_prediction.yaml')
+        tools.update_yaml('fitsfile_name',fits_name,yaml_path)
+        tools.update_yaml('ypix',nxpix,yaml_path)
+        tools.update_yaml('xpix',nypix,yaml_path)
+        tools.update_yaml('scale',round(xasec,6),yaml_path)
+   
+
+    ##################       make an output file       ############################
+    output_file = 'fits_info_'+system_name+'.txt'
+    f = open(data_folder+'/'+output_file,'w')
+    print(output_string)
+    f.write(output_string)
+    f.close()
+
+
+if __name__ == "__main__":
+    main()
+===== ./blobrender/help_strings.py =====
+HELP_DICT = {
+    "tel_name": "Telescope name",
+    "source_ra": "Right Ascension of the source",
+    "source_dec": "Declination of the source",
+    "f0": "Starting frequency",
+    "df": "Frequency step size",
+    "nchan": "Number of frequency channels",
+    "t_int": "Integration time",
+    "start_ha": "Start hour angle",
+    "end_ha": "End hour angle",
+    "add_noise": "Add noise to the simulation",
+    "ms_name": "Name of the measurement set",
+    "fitsfile_name": "Name of the fits file",
+    "newRA": "New RA for the model",
+    "newDEC": "New DEC for the model",
+    "rephase_real": "Rephase real data",
+    "reposition_model": "Reposition the model",
+    "scale": "Scale for the image",
+    "xpix": "X pixel size",
+    "ypix": "Y pixel size",
+    "system": "System to use for the simulation",
+    "image_timestep": "Time step for the image",
+    "image_filename": "Filename of the image to be processed",
+    "xresolution": "X resolution for the image",
+    "yresolution": "Y resolution for the image",
+    "kappa": "Kappa value for the image",
+    "theta": "Theta value for the image",
+    "gamma": "Gamma value for the image",
+    "disance_in_pc": "Distance in parsecs",
+    "alpha": "Alpha value for the image",
+    "P_sim": "P value for the simulation",
+    "L_sim": "L value for the simulation",
+    "nu_observe": "Observed frequency",
+    "eta": "Eta value for the image",
+    "dtype": "Type of data",
+    "distance_in_pc": "Distance in parsecs",
+    "load_interp": "Load interpolation data",
+    "container_name": "Name of the container for running the simulation",
+    "container_type": "Type of container to use (e.g., 'singularity', 'docker', or 'none')",
+}
+
+TYPES_DICT = {
+    "tel_name": str,
+    "source_ra": str,
+    "source_dec": str,
+    "f0": int,
+    "bandwidth": int,
+    "nchan": int,
+    "t_int": str,
+    "start_ha": str,
+    "end_ha": str,
+    "add_noise": bool,
+    "ms_name": str,
+    "fitsfile_name": str,
+    "newRA": str,
+    "newDEC": str,
+    "rephase_real": bool,
+    "reposition_model": bool,
+    "scale": str,
+    "xpix": str,
+    "ypix": str,
+    "system": str,
+    "image_timestep": int,
+    "xresolution": float,
+    "yresolution": float,
+    "kappa": float,
+    "theta": float,
+    "gamma": float,
+    "distance_in_pc": int,
+    "alpha": float,
+    "P_sim": float,
+    "L_sim": float,
+    "nu_observe": float,
+    "eta": float,
+    "dtype": str,
+    "load_interp": bool
+}
+===== ./blobrender/make_ska_ms.py =====
+import os
+
+# Ensure ~/.casa/data exists before importing casatools
+casa_data_dir = os.path.expanduser("~/.casa/data")
+if not os.path.exists(casa_data_dir):
+    os.makedirs(casa_data_dir, exist_ok=True)
+
+from casatools import simulator, measures, table
+from datetime import datetime
+
+import numpy as np
+import sys
+from astropy.coordinates import EarthLocation, Angle
+from astropy.time import Time
+import astropy.units as u
+
+
+from blobrender import tools
+from blobrender.help_strings import HELP_DICT
+from blobrender.paths import TEL_INFO, CONFIGS
+
+
+sm = simulator()
+me = measures()
+
+
+
+def wgs84_to_ecef(lon_deg, lat_deg, height_m):
+    """
+    Convert lat and long (degrees) and height / elevation (metres)
+    to Earth-centred XYZ coordinates based on the WGS84 geoid.
+    """
+
+    lat = np.radians(lat_deg)
+    lon = np.radians(lon_deg)
+
+    # WGS84 ellipsoid constants
+    a = 6378137.0           # semi-major axis in metres
+    f = 1 / 298.257223563   # flattening
+    e2 = f * (2 - f)        # eccentricity squared
+
+    N = a / np.sqrt(1 - e2 * np.sin(lat)**2)
+    X = (N + height_m) * np.cos(lat) * np.cos(lon)
+    Y = (N + height_m) * np.cos(lat) * np.sin(lon)
+    Z = (N * (1 - e2) + height_m) * np.sin(lat)
+
+    return X, Y, Z
+
+
+def ecef_to_wgs84(X, Y, Z):
+    """
+    Convert ECEF XYZ (meters) to latitude (deg), longitude (deg), and height (meters)
+    using WGS84 ellipsoid. Vectorized and supports scalar or array input.
+    """
+    # WGS84 constants
+    a = 6378137.0
+    f = 1 / 298.257223563
+    e2 = f * (2 - f)
+    b = a * (1 - f)
+
+    # Ensure arrays
+    X = np.atleast_1d(X)
+    Y = np.atleast_1d(Y)
+    Z = np.atleast_1d(Z)
+
+    # Compute longitude
+    lon = np.arctan2(Y, X)
+
+    # Compute intermediate values
+    p = np.sqrt(X**2 + Y**2)
+    lat = np.arctan2(Z, p * (1 - e2))
+    lat_prev = lat + 2  # force entry into loop
+
+    tol = 1e-12
+    while np.max(np.abs(lat - lat_prev)) > tol:
+        lat_prev = lat
+        N = a / np.sqrt(1 - e2 * np.sin(lat)**2)
+        h = p / np.cos(lat) - N
+        lat = np.arctan2(Z, p * (1 - e2 * N / (N + h)))
+
+    N = a / np.sqrt(1 - e2 * np.sin(lat)**2)
+    h = p / np.cos(lat) - N
+
+    # Convert to degrees
+    lat_deg = np.degrees(lat)
+    lon_deg = np.degrees(lon)
+
+    # Return scalars if scalar input
+    if lat_deg.size == 1:
+        return lon_deg[0], lat_deg[0], h[0]
+    return lon_deg, lat_deg, h
+
+def geometric_mean_antenna(antennas_xyz):
+    """
+    Given a list or array of antenna ECEF XYZ coordinates (meters),
+    return the geometric mean as (longitude_deg, latitude_deg, altitude_m).
+    """
+    antennas_xyz = np.array(antennas_xyz)
+    mean_xyz = np.mean(antennas_xyz, axis=0)
+    lon, lat, alt = ecef_to_wgs84(*mean_xyz)
+    return lon, lat, alt 
+
+
+def compute_obs_time(ra_str, start_ha_str, obs_date, site_lon):
+    """
+    Compute the UTC observation time given RA, start HA, observing date, and observatory longitude.
+
+    Parameters:
+        ra_str (str): Right Ascension (e.g., '18h20m21.938s')
+        start_ha_str (str): Start Hour Angle (e.g., '-0.2h')
+        obs_date (str): Observation date 'YYYY-MM-DD'
+        site_lon (float): Observatory longitude in radians 
+
+    Returns:
+        str: UTC observation time (YYYY/MM/DD/HH:MM:SS)
+    """
+    # Convert inputs
+    site_lon_deg = np.degrees(site_lon)
+    ra = Angle(ra_str)
+    start_ha = Angle(start_ha_str)
+    lst_target = (ra + start_ha).wrap_at(12 * u.hourangle)
+
+    # Observatory location (latitude is not needed for LST)
+    location = EarthLocation(lat=0*u.deg, lon=site_lon_deg*u.deg)  # lat dummy here
+
+    # Initial time guess near midnight
+    t_guess = Time(f"{obs_date} 00:00:00", scale='utc', location=location)
+
+    # Compute time offset to reach desired LST
+    delta_lst = (lst_target - t_guess.sidereal_time('apparent')).wrap_at(12 * u.hourangle)
+    delta_sec = delta_lst.hour * 3600
+    t_start = t_guess + delta_sec * u.s
+
+    return t_start.utc.strftime("%Y/%m/%d/%H:%M:%S")
+
+
+def main():
+
+    #--------------------------------------------------------------
+    # Observational setup
+    # Use caution when testing as realistic dump times and channel widths
+    # will generate an SKA-Mid-sized Measurement Set
+
+    overwrite = True # Remove any existing MS with the same name
+    update_yaml = True # Update the YAML file with the new MS name
+
+
+    #I put this code at the top of the script to ensure that ~/.casa/data exists,
+    # before I had to restart the script but maybe now that it's at the top it's fine (tbd)
+    """
+        casa_data_dir = os.path.expanduser("~/.casa/data")
+        if not os.path.exists(casa_data_dir):
+            print(f"Creating {casa_data_dir} and restarting script...")
+            os.makedirs(casa_data_dir, exist_ok=True)
+            # Restart the script
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+    """
+
+
+    yaml_file = os.path.join(CONFIGS,'default_MSbuilder.yaml')
+    args = tools.get_arguments(yaml_file,HELP_DICT)
+    
+    telescopename = args.telescopename # 'SKA-Mid'
+
+    ms_name = args.new_ms_name
+
+    # Sky direction (J2000)
+    source_name = 'BLOB'
+    source_ra = args.source_ra #'12h00m00.0s'
+    source_dec = args.source_dec #'-40d00m0.0s'
+
+    # Frequency setup
+    f0 = args.f0 #'856MHz' # lowest band frequency
+    bandwidth = args.bandwidth #total bandwidth in MHz
+    nchan = args.nchan #8 # number of channels
+    df = (bandwidth)/ (nchan-1.0) # channel width in MHz
+
+    # Start time and track length
+
+
+    #####now_utc = datetime.utcnow() #this can be changed to a specific time if desired
+    #####obs_time = now_utc.strftime("%Y/%m/%d/%H:%M:%S") #removed -m and -d for windows compatibility
+    
+    obs_date = datetime.utcnow().strftime("%Y-%m-%d") # Observation date in YYYY-MM-DD format
+    #changing the start reference time so that it corresponds to the correct transit time, this requires knowing
+    #location of the telescope so will do later on. 
+    #for now just specifying the date and working out the compatible time later
+    #will include this as a yaml option later
+
+
+
+
+    t_int = args.t_int #'120s' # Note that this is the correlator dump time, not total track length
+    start_ha = args.start_ha #'-0.2h' # Start and end times are relative to transit
+    end_ha = args.end_ha #'+0.2h'
+    elevation = 1000.0 # Elevation above sea level in metres, used for antenna positions, assuming 1km for now 
+    mount_type = 'alt-az'
+
+    ### this will ONLY be used if overtly specified
+    override_reference_location = False
+    # Inferred emerlin reference point 
+    lon_deg = -2.596399       # Longitude in degrees
+    lat_deg = 53.041153       # Latitude in degrees
+    alt_m   = -6193.071004    # Ellipsoidal height in meters
+    lon_rad = np.deg2rad(lon_deg)
+    lat_rad = np.deg2rad(lat_deg)
+    reference_pos = me.position('ITRF', lon_rad, lat_rad, alt_m)
+
+    #--------------------------------------------------------------
+    # Read the antenna names and coordinates (name,lon,lat,elevation,diameter)
+
+
+    antenna_filename = telescopename + '.txt'
+    layout_file = os.path.join(TEL_INFO, antenna_filename)
+    f = open(layout_file)
+    antenna_positions = []
+    antenna_names = []
+    antenna_diameters = []
+    line = f.readline()
+    while line:
+        cols = line.split()
+        antenna_positions.append((float(cols[1]),float(cols[2]),float(cols[3]))) 
+        antenna_names.append(cols[0])
+        antenna_diameters.append(float(cols[4])) # Diameter in metres
+        line = f.readline()
+    f.close()
+
+
+    #--------------------------------------------------------------
+    # Convert lon,lat to XYZ
+
+    antennas_xyz = []
+    ant_x = []
+    ant_y = []
+    ant_z = []
+
+    for i, (lon, lat, elev) in enumerate(antenna_positions):
+        X, Y, Z = wgs84_to_ecef(lon, lat, elev)
+        ant_x.append(X)
+        ant_y.append(Y)
+        ant_z.append(Z)
+        antennas_xyz.append((X, Y, Z))
+
+
+    #--------------------------------------------------------------
+    # Start the sim
+
+    if os.path.exists(ms_name):
+        if overwrite:
+            print(f'Replacing existing {ms_name}')
+            os.system(f'rm -rf {ms_name}')
+        else:
+            print(f'{ms_name} exists, will not overwrite')
+            sys.exit()
+
+    sm.open(ms = ms_name)
+
+    # Antenna configuration
+
+    if override_reference_location:
+            array_center = reference_pos
+    else:
+        # Use MeerKAT as the reference location since CASA knows about it
+        if telescopename == 'SKA-Mid' or telescopename == 'MeerKAT':
+            # For SKA-Mid, we assume the MeerKAT configuration
+            array_center = me.observatory('MeerKAT')    
+        elif telescopename == 'e-MERLIN':
+            array_center = me.observatory('e-MERLIN')  
+        elif telescopename in [obs.upper for obs in me.obslist()]:
+            #if its not emerlin or meerkat, but it is a known observatory 
+            array_center = me.observatory(telescopename) 
+        else:
+            # If the telescope is not a known observatory, we use the geometric mean of the antenna positions
+            array_mean = geometric_mean_antenna(antennas_xyz)
+            array_center = me.position('ITRF', *array_mean)
+    # Set the antenna configuration
+    sm.setconfig(telescopename = telescopename,
+                        x = ant_x,
+                        y = ant_y,
+                        z = ant_z,                 
+                        dishdiameter = antenna_diameters,
+                        mount = [mount_type],
+                        antname = antenna_names,
+                        coordsystem = 'global',
+                        referencelocation = array_center)
+
+
+    # Polarisation mode, assuming perfect linear feeds
+    sm.setfeed(mode = 'perfect X Y', pol = [''])
+
+    # Spectral window and associated pol config
+    # Can be called repeatedly for multiple SPWs
+
+    f0 =f"{f0}MHz" # lowest band frequency in MHz
+    df = f"{df}MHz" # channel width in MHz
+
+    sm.setspwindow(spwname = "SPW0",
+                freq = f0,
+                deltafreq = df,
+                freqresolution = df,
+                nchannels = nchan,
+                stokes = 'XX YY')
+
+    # Source / field info (i.e. phase centre definition)
+    # Can also be called multiple times for multiple fields
+    sm.setfield( sourcename = source_name,
+                sourcedirection = me.direction(rf = 'J2000', v0 = source_ra,v1 = source_dec))
+
+    # Flag based on shadowing or elevation limits
+    sm.setlimits(shadowlimit = 0.01, elevationlimit = '12deg')
+    #currently these are set somewhat arbitrarily. should be set to realistic values for the telescope in question
+
+    # Ditch the autocorrelations
+    sm.setauto(autocorrwt = 0.0);
+
+    # Set the reference time and integration time
+
+    #to set the reference time we need to know the telescope longitude
+    tel_lon = array_center['m0']['value']
+    obs_time = compute_obs_time(source_ra, start_ha, obs_date, tel_lon)
+
+
+
+
+
+
+    sm.settimes(integrationtime = t_int,
+                usehourangle = True,
+                referencetime = me.epoch('UTC',obs_time))
+    #reference time refers to the time at which the source will transit the local meridian
+    #usehourangle = True means that the start and end times are relative to the source transit time
+
+    # Generate u,v,w tracks
+    sm.observe(sourcename = source_name,
+            spwname = 'SPW0',
+            starttime = start_ha,
+            stoptime = end_ha)
+
+    sm.close()
+
+
+    if update_yaml:
+        yaml_path = os.path.join(CONFIGS,'default_prediction.yaml')
+        tools.update_yaml('ms_name',ms_name,yaml_path)
+        tools.update_yaml('telescopename',telescopename,yaml_path)
+
+if __name__ == "__main__":
+    main()
+===== ./blobrender/pad_fits.py =====
+from . import tools
+import os
+from .paths import CONFIGS, CONTAINERS, RESULTS, SIM_DAT
+from blobrender.help_strings import HELP_DICT
+from astropy.io import fits
+import numpy as np
+from math import ceil
+import sys
+from blobrender.tools.image_checks import check_image_pixelsize
+
+def pad_fits(input_fits, output_fits, target_x, target_y):
+    """
+    Pad ya FITS image with zeros to reach (target_y, target_x) shape.
+    Pads equally on both sides if possible.
+
+    Parameters:
+        input_fits (str): Path to input FITS file.
+        output_fits (str): Path to output padded FITS file.
+        target_x (int): Desired number of pixels in X (axis 1).
+        target_y (int): Desired number of pixels in Y (axis 0).
+    """
+    with fits.open(input_fits) as hdul:
+        data = hdul[0].data
+        header = hdul[0].header
+
+        # Ensure target_x and target_y are even numbers
+        if target_x % 2 != 0:
+            target_x += 1
+        if target_y % 2 != 0:
+            target_y += 1
+        # Assume 2D image (can be generalized)
+        y, x = data.shape[-2:]
+        # Calculate padding to keep the central pixel at the center
+        orig_cx = (x - 1) / 2
+        orig_cy = (y - 1) / 2
+        new_cx = (target_x - 1) / 2
+        new_cy = (target_y - 1) / 2
+        pad_left = int(np.floor(new_cx - orig_cx))
+        pad_right = int(np.ceil(new_cx - orig_cx))
+        pad_top = int(np.floor(new_cy - orig_cy))
+        pad_bottom = int(np.ceil(new_cy - orig_cy))
+
+        pad_width = [(0, 0)] * (data.ndim - 2) + [(pad_top, pad_bottom), (pad_left, pad_right)]
+        padded_data = np.pad(data, pad_width, mode='constant', constant_values=0)
+
+        # Update header for new size (CRPIX1/2 should be shifted)
+        if 'CRPIX1' in header:
+            header['CRPIX1'] += pad_left
+        if 'CRPIX2' in header:
+            header['CRPIX2'] += pad_top
+        header['NAXIS1'] = target_x
+        header['NAXIS2'] = target_y
+
+        # Copy all other extensions (if any) to preserve full FITS structure
+        hdul_out = fits.HDUList()
+        # Update the primary HDU with padded data and updated header
+        hdul_out.append(fits.PrimaryHDU(data=padded_data, header=header))
+        # Copy any additional HDUs unchanged
+        for hdu in hdul[1:]:
+            hdul_out.append(hdu.copy())
+
+        hdul_out.writeto(output_fits, overwrite=True)
+        return padded_data.shape[-1], padded_data.shape[-2]
+
+def padded_fits_name(fname):
+    base, ext = os.path.splitext(fname)
+    # Check if the base already ends with '_padded'
+    if base.lower().endswith('_padded'):
+        sys.exit(f"HONQUE!! FITS file {fname} already padded. Remove '_padded' suffix to re-pad.") 
+    if ext.lower() == '.fits':
+        return f"{base}_padded{ext}"
+    else:
+        return f"{fname}_padded"
+
+def main():
+    update_yaml= True
+
+    yaml_file = os.path.join(CONFIGS,'default_prediction.yaml')
+    args = tools.get_arguments(yaml_file,HELP_DICT)
+
+    split_ms_name = args.ms_name
+    fitsfile_name = args.fitsfile_name
+    xpix = int(args.xpix)
+    ypix = int(args.ypix)
+    scale = float(args.scale)
+    fov = min(xpix, ypix)*scale
+
+    padded_fits = padded_fits_name(fitsfile_name)
+
+    fits_path = os.path.join(SIM_DAT, os.path.basename(fitsfile_name))
+    with fits.open(fits_path) as hdul:
+        data = hdul[0].data
+        fits_ypix, fits_xpix = data.shape[-2:]
+    if xpix != fits_xpix or ypix != fits_ypix:
+        sys.exit(f"HONQUE HONQUE!: xpix/ypix from args ({xpix}, {ypix}) do not match FITS file dimensions ({fits_xpix}, {fits_ypix})")
+
+
+
+    min_frequency, max_frequency = tools.get_min_max_frequency(split_ms_name)
+    min_b, max_b = tools.baseline_range_from_ms(split_ms_name)
+
+    good_pix, max_pix = check_image_pixelsize(scale, max_b, max_frequency)
+    print(f"Pixel size {scale} arcsec is {'OK' if good_pix else 'TOO LARGE'} for max baseline {max_b:.2f} m at frequency {max_frequency/1e6:.3f} MHz. Max allowed pixel size is {max_pix:.2f} arcsec.")
+
+    good_fov, min_fov = tools.check_image_fov(fov, min_b, min_frequency)
+    print(good_fov, min_fov)
+    new_npix = int(ceil(min_fov / scale)*1.1) # 10% extra padding for those wanting to use uniform weighting when imaging
+    if new_npix*2 > 100000:
+        sys.exit(f"HONQUE HONQUE! New pixel size {new_npix}x{new_npix} is too large. Reduce pixel scale to fit within 100,000 pixels.")
+    output_fits_path = os.path.join(SIM_DAT, os.path.basename(padded_fits))
+    if not good_fov:
+        newxpix, newypix = pad_fits(fits_path, output_fits_path, new_npix, new_npix)
+        print(f"FITS image padded to {new_npix}x{new_npix} pixels to meet FOV*1.1 requirements.")
+    else:
+        print(f"FITS image already meets FOV requirements: {fov} arcsec >= {min_fov:.3f} arcsec.")
+
+    if not good_fov and update_yaml:
+        tools.update_yaml('xpix',newxpix,yaml_file)
+        tools.update_yaml('ypix',newypix,yaml_file)
+        tools.update_yaml('fitsfile_name',padded_fits,yaml_file)
+    return 
+
+if __name__ == "__main__":
+    main()
+===== ./blobrender/paths.py =====
+import os
+
+CWD = os.getcwd()
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+HOME = os.path.expanduser('~')
+
+TOOLS = os.path.join(BASE_DIR, 'tools')
+CONTAINERS = os.path.join(BASE_DIR, 'containers')
+SIM_DAT = os.path.join(BASE_DIR, 'sim_data')
+TEL_INFO = os.path.join(BASE_DIR, 'telescope_info')
+PLOTS = os.path.join(BASE_DIR, 'plots')
+CONFIGS = os.path.join(BASE_DIR, 'configs')
+RESULTS = os.path.join(BASE_DIR, 'results')
+===== ./blobrender/predict_fromfits.py =====
+import subprocess
+import os
+import stat
+from . import tools
+import numpy as np
+
+
+from .paths import CONFIGS, CONTAINERS, TEL_INFO
+from blobrender.help_strings import HELP_DICT
+
+
+#assumes you have fitsfile and split-MS in current directory 
+
+#populate the scale and pix from the format of the fits file
+
+#timestep is just for naming conventions 
+
+
+
+def main():
+
+	
+	# Load defaults from YAML
+
+	yaml_file = os.path.join(CONFIGS,'default_prediction.yaml')
+	args = tools.get_arguments(yaml_file,HELP_DICT)
+
+	# Unpack arguments
+	reposition_model = args.reposition_model
+	rephase_real = args.rephase_real
+	add_noise = args.add_noise
+	newRA = args.newRA
+	newDEC = args.newDEC
+	xpix = args.xpix
+	ypix = args.ypix
+	scale = args.scale
+	split_ms_name = args.ms_name
+	fitsfile_name = args.fitsfile_name
+	telescopename = args.telescopename
+	timestep = str(args.image_timestep)
+	container_name = args.container_name
+	container_type = args.container_type
+
+	# these are from the MS builder YAML file
+	nchannels = '32'
+	delta_nu = '62.5e6'  # Bandwidth per channel in Hz
+	t_int = '4.0'  # Integration time in seconds
+	pixels_per_beam = '4'  # Number of pixels per beam
+	add_field = False
+
+	### check that the pixel size and FOV of your model image are appropriate for the telescope you are using
+	
+	min_frequency, max_frequency = tools.get_min_max_frequency(split_ms_name)
+	min_b, max_b = tools.baseline_range_from_ms(split_ms_name)
+	good_pixel_size, max_pix = tools.check_image_pixelsize(float(scale), max_b, max_frequency)
+	if not good_pixel_size:
+		raise ValueError(f"HONQUE HONQUE! Pixel size {scale} arcsec is too large for the maximum baseline {max_b:.2f} m at frequency {max_frequency/1e6:.3f} MHz. Reduce pixel size of your image to {max_pix:.2f}\" .. or else.")
+	fov = min(float(xpix), float(ypix))*float(scale)  # field of view in arcseconds
+	good_fov, min_fov = tools.check_image_fov(fov, min_b, min_frequency)
+	print(fov, min_fov)
+	if not good_fov:
+		raise ValueError(f"HONQUE HONQUE! Field of view {fov} arcsec is too small for the minimum baseline {min_b:.2f} m at frequency {min_frequency/1e6:.3f} MHz. Increase field of view of your image to at least {min_fov:.3f}\" .. or else.")
+	
+
+	#some specific requirements that I need to figure out how they depend on the telescope 
+	reorder='-reorder' #blank for no reorder
+	field = '' #blank for split dataset 
+	mem=str(50) #memory for wsclean
+	
+	cont = os.path.join(CONTAINERS,container_name)
+	container_type_lower = str(container_type).lower()
+
+	### we are assuming that you will run this script from inside blob-render and so
+	### there is a results folder under you. This may need to be more flexble in the future
+	### but works for now lol
+
+	if container_type_lower == 'singularity':
+		container_setup = f'singularity exec --bind {os.getcwd()} ' + cont + ' '
+	elif container_type_lower == 'docker':
+		container_setup = f'docker run --rm -v {os.getcwd()}:/home/user -w /home/user ' + container_name + ' '
+	elif container_type_lower == 'none':
+		container_setup = ''
+	else:
+		raise ValueError(f"Unknown container type: {container_type}. Use 'singularity', 'docker', or 'none'")
+
+	bash_runfile = 'run_predict.sh'
+	predict_file_name = os.path.join('results','brender_'+telescopename+'_inpmodel_'+timestep) #where you instert the simulation
+	image_file_name = os.path.join('results','brender_'+telescopename+'_modimage_'+timestep) #images from cleaning process
+	imagesum_file_name = os.path.join('results','brender_'+telescopename+'_sumimage_'+timestep)
+
+
+	f = open(bash_runfile,'w')
+	f.write('#!/usr/bin/env bash\n')
+	
+	#rephase real visibilities to where you want to add the sim data to
+	if rephase_real:
+		f.write('printf "rephasing real data\n" \n')
+		f.write(container_setup+'chgcentre '+split_ms_name+' 18h20m21.6185s +07d11m00.6386s\n') 
+	
+	#clean with 0 iterations: create fits file images with dirty visibilities but the right dimensions
+	f.write('printf "creating model\n" \n')
+	f.write(container_setup+'wsclean -size '+xpix+' '+ypix+' -scale '+scale+'asec -niter 0 -make-psf -channels-out '+nchannels+' '+reorder+' -name '+predict_file_name+' -data-column DATA -use-wgridder -mem '+mem+' '+split_ms_name+'\n')
+	
+	#create a -model fits file with the simulated data in it with the same format as the -image file produced from the previous cleaning step 
+	f.write(
+    	f"python3 -m blobrender.tools.populatefits --model_fits {fitsfile_name} "
+    	f"--wsclean_fits {predict_file_name}-image.fits "
+    	f"--op_fits {predict_file_name}-model.fits "
+		f"--nchan {nchannels}\n"
+	)
+	
+	#change the RA and DEC of the model fits files to the desired position
+	if reposition_model:
+		f.write('printf "changing RA and DEC of model\n" \n')
+		f.write("python3 -m blobrender.tools.change_RADEC_fits "+predict_file_name+'-model.fits '+newRA+' '+newDEC+'\n')
+		f.write("python3 -m blobrender.tools.change_RADEC_fits "+predict_file_name+'-image.fits '+newRA+' '+newDEC+'\n')
+		f.write("python3 -m blobrender.tools.change_RADEC_fits "+predict_file_name+'-dirty.fits '+newRA+' '+newDEC+'\n')
+	
+	#predict model visibilities
+	f.write('printf "predicting model visibilities\n" \n')
+	f.write(container_setup+'wsclean -predict -mem '+mem+' -size '+xpix+' '+ypix+' -scale '+scale+'asec -channels-out '+nchannels+' '+reorder+' -name '+predict_file_name+' -use-wgridder '+split_ms_name+'/\n')
+	
+	#estimate the beam size from the PSF fits file
+	f.write('pixscale=$(python3 -m blobrender.tools.calc_beamsize --fitsfile '+predict_file_name+' --pixels_per_beam '+pixels_per_beam+' --nchan '+nchannels+')\n')
+	f.write('echo "Pixel scale is $pixscale arcseconds"\n')
+
+	###add noise to the model visibilities
+	if add_noise:
+		f.write('printf "adding noise to model visibilities\n" \n')
+		#load the sefd config file
+		sefd_dict = os.path.join('telescope_info','{}_SEFD.yaml'.format(telescopename))
+		#f.write(container_setup+'python3 blobrender/tools/add_MS_column.py --ms_path '+split_ms_name+' --modelcol MODEL_DATA --newcol NOISY_MODEL2\n')
+		f.write(container_setup+'python3 blobrender/tools/add_noise_pyrap.py --ms_path '+split_ms_name+' --sefd_dict_filename '+sefd_dict+' --delta_nu '+delta_nu+' --t_int '+t_int+' --column MODEL_DATA\n')
+		f.write('printf "noise added to model visibilities\n" \n')
+
+
+
+	#image the model visibilities
+	f.write('printf "imaging model data \n" \n')
+	f.write(container_setup+'wsclean -mem 80 -mgain 0.9 -gain 0.15 -size 1024 1024 -scale ${pixscale}asec -niter 10000 -auto-mask 3 -auto-threshold 0.3 -channels-out 1 -no-update-model-required '+reorder+' -name '+image_file_name+' -data-column MODEL_DATA '+field+' -use-wgridder '+split_ms_name+'\n')
+	
+	#add together model and real data
+	if add_field:
+		f.write('printf "adding model to real data\n" \n')
+		f.write(container_setup+'python3 -m blobrender.tools.add_MS_column '+split_ms_name+' --colname DATA_MODEL_SUM\n')
+		f.write(container_setup+'python3 -m blobrender.tools.copy_MS_column '+split_ms_name+' --fromcol CORRECTED_DATA --tocol DATA_MODEL_SUM\n')
+		f.write(container_setup+'python3 -m blobrender.tools.sum_MS_columns '+split_ms_name+' --src MODEL_DATA --dest DATA_MODEL_SUM\n')
+
+	#rephase the visibilities back to the original phase centre 
+	if rephase_real:
+		f.write('printf "rephasing real data back to original phase centre\n" \n')
+		f.write(container_setup+'chgcentre '+split_ms_name+' 18h20m21.938s 07d11m07.177s\n')  #DATA, MODEL_DATA and CORRECTED_DATA 
+		f.write(container_setup+'chgcentre -datacolumn DATA_MODEL_SUM '+split_ms_name+' 18h20m21.938s 07d11m07.177s\n')  #DATA_MODEL_SUM 
+	
+	#image the model+data according to emerlin recommended params
+	if add_field:
+		f.write('printf "imaging model + data\n" \n')
+		f.write(container_setup+'wsclean -mem 80 -mgain 0.8 -gain 0.15 -size 5000 5000 -scale 5masec -niter 10000 -channels-out 1 -no-update-model-required -reorder -name '
+		+imagesum_file_name+' -weight briggs 0.8 -data-column DATA_MODEL_SUM -use-wgridder '+split_ms_name+'\n')
+
+	f.close()
+
+	os.chmod(bash_runfile,stat.S_IRWXU)
+	#run bash file 
+	subprocess.call("./"+bash_runfile)
+	
+
+if __name__ == "__main__":
+    main()
+
+===== ./blobrender/resize_fits.py =====
+from astropy.io import fits
+import numpy as np
+from astropy import units as u
+from astropy.coordinates import SkyCoord
+import sys
+sys.path.append("/Users/savard/PLUTO/pluto_playtime/plotting_analysis/")
+from pyplutplot import * 
+from fits_conversion import *
+import aplpy
+
+def header_adjust(fits_name,image_array_flip,RA_cent,DEC_cent,xres,yres):
+    hdu = fits.PrimaryHDU(image_array_flip)
+    hdu.writeto(fits_name,overwrite=True)
+    hdul = fits.open(fits_name,mode='update')
+    hdu = hdul[0]
+    headers = hdu.header
+    headers = hdu.header
+    cent_pix1 = len(image_array_flip[0])/2
+    cent_pix2 = len(image_array_flip.T[0])/2
+    headers.set('BUNIT','JY/PIXEL')
+    headers.set('BSCALE',1.)
+    headers.set('BZERO',0.)
+    headers.set('BTYPE','Intensity')
+    headers.set('CRPIX1',cent_pix1)
+    headers.set('CRPIX2',cent_pix2)
+    headers.set('CUNIT1','deg     ')
+    headers.set('CUNIT2','deg     ')
+
+    headers.set('CRVAL1',RA_cent)
+    headers.set('CRVAL2',DEC_cent)
+
+    headers.set('CTYPE1','RA---SIN')
+    headers.comments['CTYPE1'] = 'Right ascension angle cosine'
+    headers.set('CTYPE2','DEC--SIN')
+    headers.comments['CTYPE2'] = 'Declination angle cosine'
+    headers.set('CDELT1',xres)
+    headers.set('CDELT2',yres)
+    hdul.flush()
+
+def plot_fits(eht_fits,frame_flux,time,results_folder,imtstep):
+    fig = plt.figure(figsize=(7, 7))
+    f1 = aplpy.FITSFigure(eht_fits,figure=fig)
+    f1.show_colorscale(cmap='inferno')
+    f1.add_colorbar()
+    f1.colorbar.show(pad=0.1)
+    f1.colorbar.set_location('right')
+    f1.colorbar.set_axis_label_text('Jy/beam')
+    f1.add_scalebar(20*1e-6 * u.arcsecond)
+    f1.scalebar.set_corner('top right')
+    f1.scalebar.set_color('white')
+    f1.scalebar.set_label(r'20$\mu$as')
+    f1.add_label(x=0.1,y=0.1,text='{} mJy'.format(frame_flux),relative=True,color='pink')
+    f1.set_title('{} seconds'.format(time))
+    save_fig(results_folder,'plotfits_{}'.format(imtstep),overwrite=True)
+
+def unit_print(D,image,L_sim,distance_in_pc,verbose):
+    #now check what the resolution size is in real units for wsclean:
+    ax1_check = D.x1[:len(image[0])]
+    ax2_check = D.x2[:len(image.T[0])]
+    x = m_to_arcseconds(ax1_check*L_sim,distance_in_pc)
+    y = m_to_arcseconds(ax2_check*L_sim,distance_in_pc)
+    xres = x[2]-x[1]
+    yres = y[2]-y[1]
+    if verbose:
+        print('x-direction res: {:.8f} arcseconds'.format(xres))
+        print('y-direction res: {:.8f} arcseconds'.format(yres))
+    return xres/3600,yres/3600
+
+def main():
+
+    ######### system parameters
+    system_name = 'ri0.001_rb0.02_lz2'
+
+    args = sys.argv[1:]
+    if len(args)==1:
+        image_timestep = int(args[0])
+    else:
+        print('specify timestep')
+        return
+    
+    L_sim = 465841907.0462244 #m
+    nu_observe = (86.0 * 1e9) #GHz 
+    distance_in_pc = 2960
+
+    verbose = True
+    print_result = True
+
+    ######## define filenames
+    data_dir = '/pluto_playtime/data_storage/'+system_name+'/' #set up working directory where data is stored
+    results_folder = '/Users/savard/PLUTO/pluto_playtime/plotting_analysis/sim_results/{}'.format(system_name)
+    eht_results_folder = '/Users/savard/PLUTO/pluto_playtime/plotting_analysis/sim_results/eht_scaled_sims'
+    ez_filename = 'pixel_lum_'+system_name+'_'+str(image_timestep)+'_'+str(nu_observe/1e9)+'GHz'
+
+    ####### load in the image
+    image_array = load_list(eht_results_folder,ez_filename)
+    image_array_flip = np.concatenate((np.flip(image_array,axis=1),np.array(image_array)),axis=1)
+
+    #### ----- adjust luminosity array ---- ######
+
+    #check if needs a deres
+    image_array_flip = deres_array_check(image_array_flip,verbose) 
+
+    #check if the shape is even
+    image_array_flip = even_shape_check(image_array_flip,verbose)
+    if verbose: print(np.shape(image_array_flip))
+
+    #scale up in luminosity
+    lum_scaler = 3e15
+    eht_image_array = image_array*lum_scaler
+    eht_image_array_flip = np.concatenate((np.flip(eht_image_array,axis=1),np.array(eht_image_array)),axis=1)
+    frame_flux = np.sum(eht_image_array_flip*10**3)
+
+    #create name for fits file 
+    fits_name = 'ffile_'+system_name+'_'+str(image_timestep)
+    exta_descriptors='_EHTscaled'
+    eht_fits = eht_results_folder+'/'+fits_name+exta_descriptors+'.fits'
+
+    D = load_data_obj(data_dir,image_timestep,data_type='flt')
+    xres, yres = unit_print(D,image_array,L_sim,distance_in_pc,verbose) #get resolution
+    del D
+
+    #### ----- calculate the position of the central pixel ---- ######
+
+    #position of the core and direction of propagation
+    ra_core_deg = -84.9085916666667
+    dec_core_deg = 7.18532694444445
+    c1 = SkyCoord(ra_core_deg,dec_core_deg,unit=(u.deg, u.deg),frame='icrs')
+    position_angle = 0.0 * u.deg
+
+    #now load in what the separation should be 
+    time = load_list(eht_results_folder,'timearray_projected_scaled') #seconds
+    disp = load_list(eht_results_folder,'disparray_projected_scaled') #uas
+
+    time_current = time[image_timestep] #seconds
+    disp_current = disp[image_timestep] #uas
+
+    separation = disp_current * u.microarcsecond
+    new_pos = c1.directional_offset_by(position_angle, separation)
+    RA_cent = new_pos.ra.degree
+    DEC_cent = new_pos.dec.degree
+
+    ###### save as a fits file with the correct headers 
+    header_adjust(eht_fits,eht_image_array_flip,RA_cent,DEC_cent,xres,yres)
+
+    #### plot the fits file 
+    if print_result:
+        hdul = fits.open(eht_fits,mode='readonly')
+        hdu = hdul[0]
+        headers = hdu.header
+        if verbose: print(headers)
+        plot_fits(eht_fits,frame_flux, time_current,eht_results_folder,image_timestep)
+
+
+
+    
+
+
+
+
+if __name__ == "__main__":
+    main()
+===== ./blobrender/setup_container.py =====
+import os 
+import subprocess
+import argparse
+import yaml
+from blobrender.paths import CONTAINERS, CONFIGS
+from blobrender.tools import update_yaml
+
+def check_singularity_remote_login():
+    try:
+        result = subprocess.run(
+            ["singularity", "remote", "status"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True
+        )
+        # Look for login confirmation in output
+        output = result.stdout + result.stderr
+        if (
+            "Logged in as:" in output
+            or "Valid authentication token set" in output
+            or "Access Token Verified" in output
+        ):
+            return True
+    except Exception as e:
+        print("Could not check Singularity remote login status. Please ensure Singularity is installed.")
+        print(e)
+        return False
+    
+    
+def singularity_setup(use_remote=False, use_local_file=False):
+    if use_local_file:
+        sif_name = "blobrender-local.sif"
+    else:
+        sif_name = "wsclean-1.6.3-dockerhub.sif"
+    wsclean_sif = os.path.join(CONTAINERS, sif_name)
+    local_def = os.path.join(CONTAINERS, "blobrender-singularity.def")
+
+    if os.path.exists(wsclean_sif):
+        print(f"Singularity container already exists at {wsclean_sif}. Skipping build/pull.")
+    else:
+        os.makedirs(CONTAINERS, exist_ok=True)
+        if use_local_file:
+            if use_remote:
+                if not check_singularity_remote_login():
+                    raise RuntimeError("Remote build requested but not logged in. Please run: singularity remote login")
+                print("Using remote builder to build Singularity container from local definition file.")
+                build_cmd = [
+                    "singularity", "build", "--remote", wsclean_sif, local_def
+                ]
+            else:
+                print(f"Building Singularity container from local definition file: {local_def}")
+                build_cmd = [
+                    "singularity", "build", wsclean_sif, local_def
+                ]
+            subprocess.run(build_cmd, check=True)
+        else:
+            if use_remote:
+                if not check_singularity_remote_login():
+                    raise RuntimeError("Remote build requested but not logged in. Please run: singularity remote login")
+                print("Using remote builder to build Singularity container from DockerHub image.")
+                build_cmd = [
+                    "singularity", "build", "--remote", wsclean_sif, "docker://stimela/wsclean:1.6.3"
+                ]
+                subprocess.run(build_cmd, check=True)
+            else:
+                print("Pulling Singularity container from DockerHub locally.")
+                pull_cmd = [
+                    "singularity", "pull", f"--dir={CONTAINERS}", "docker://stimela/wsclean:1.6.3"
+                ]
+                subprocess.run(pull_cmd, check=True)
+            print("Singularity container downloaded.")
+    return sif_name
+
+def docker_image_exists(image_name):
+    result = subprocess.run(
+        ["docker", "images", "-q", image_name],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+    return bool(result.stdout.strip())
+
+def docker_setup(use_local_file=False):
+    wsclean_docker = "stimela/wsclean:1.6.3"
+    local_dockerfile = os.path.join(CONTAINERS, "blobrender-dockerfile")
+    local_image_name = "blobrender-docker"
+    try:
+        if use_local_file:
+            if docker_image_exists(local_image_name):
+                print(f"Docker image '{local_image_name}' already exists. Skipping build.")
+            else:
+                print(f"Building Docker image from local Dockerfile: {local_dockerfile}")
+                build_cmd = [
+                    "docker", "build", "-f", local_dockerfile, "-t", local_image_name, CONTAINERS
+                ]
+                subprocess.run(build_cmd, check=True)
+            imagename = local_image_name
+        else:
+            if docker_image_exists(wsclean_docker):
+                print(f"Docker image '{wsclean_docker}' already exists. Skipping pull.")
+            else:
+                print("Pulling Docker image from Docker Hub.")
+                pull_cmd = ["docker", "pull", wsclean_docker]
+                subprocess.run(pull_cmd, check=True)
+            imagename = wsclean_docker
+        return imagename
+    except subprocess.CalledProcessError as e:
+        print("\nERROR: Docker command failed.")
+        print("Details:", e)
+        print("This may be because the Docker daemon is not running.")
+        print("Please start Docker Desktop and try again.\n")
+        raise
+    except FileNotFoundError:
+        print("\nERROR: Docker is not installed or not found in your PATH.")
+        print("Please install Docker and ensure it is available in your terminal.")
+        raise
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--filetype",
+        required=False,
+        help="Choose either 'docker' or 'singularity' (required unless --nocontainer is set)"
+    )
+    parser.add_argument(
+        "--nocontainer",
+        action="store_true",
+        help="If set, do not use a container and ignore --filetype. This assumes you have wsclean installed locally."
+    )
+    parser.add_argument(
+        "--local-file",
+        action="store_true",
+        help="If set, build the container from the local file in the containers folder instead of pulling/building from DockerHub."
+    )
+    parser.add_argument(
+        "--remote-build",
+        action="store_true",
+        help="If set, use remote build for Singularity (ignored for Docker)."
+    )
+
+    args = parser.parse_args()
+
+    # Make filetype case-insensitive
+    if args.filetype:
+        filetype = args.filetype.lower()
+    else:
+        filetype = None
+        print("No filetype specified. Defaulting to None.")
+    
+    
+    if args.nocontainer:
+        print("You chose not to use a container.")
+        container_name = 'None'
+        args.filetype = 'None'
+    else: # If a container is to be used
+        if not filetype:
+            parser.error("--filetype is required unless --nocontainer is set")
+        print(f"You chose to use a container of type: {filetype}")
+        
+        if filetype == "singularity":
+            container_name = singularity_setup(use_remote=args.remote_build, use_local_file=args.local_file)
+        elif filetype == "docker":
+            if args.remote_build:
+                raise ValueError("Cannot use remote build with Docker. Option only available for Singularity.")
+            container_name = docker_setup(use_local_file=args.local_file)
+        else:
+            parser.error("Invalid --filetype. Choose either 'docker' or 'singularity'.")
+
+    yaml_path = os.path.join(CONFIGS, "default_prediction.yaml")
+    update_yaml("container_name", container_name, yaml_path)
+    update_yaml("container_type", filetype, yaml_path)
+
+
+
+if __name__ == "__main__":
+    main()
+
+===== ./blobrender/simulation_luminosity.py =====
+from . import tools
+import numpy as np 
+import argparse
+import yaml
+import os
+from .paths import SIM_DAT, PLOTS, CONFIGS
+from blobrender.help_strings import HELP_DICT
+
+####not currently using this functions because I know the size of my sims but can use it to crop the image if needed
+def find_limits(v,x1,x2,buffer_size,minimum_size):
+    ##find top limit
+
+    is_zero = True #want this to turn false before true again 
+    stop_index_top = 0
+    for index, xrow in enumerate(v.T):
+        if np.any(xrow):
+            is_zero = False
+        if not np.any(xrow) and not is_zero:
+            stop_index_top = index
+            break
+
+
+    ### find bottom limit
+
+    detection_limit = 1e-10
+
+    is_zero = True #want this to turn false before true again 
+    stop_index_bottom = 0
+    for index, xrow in enumerate(v.T):
+        if np.any(xrow):
+            if np.max(xrow)>detection_limit:
+                is_zero = False
+                stop_index_bottom = index
+                break
+
+    #### find side limit
+
+    detection_limit = 1e-10
+
+    is_zero = True #want this to turn false before true again 
+    stop_index_side = 0
+    for index, yrow in reversed(list(enumerate(v))):
+        if np.any(yrow):
+            if np.max(yrow)>detection_limit:
+                is_zero = False
+                stop_index_side = index
+                break
+
+    buffer_size = 100
+    minimum_size = 1300
+
+    stop_index_top = stop_index_top + buffer_size
+    stop_index_bottom = stop_index_bottom - buffer_size
+    stop_index_side = stop_index_side + buffer_size
+
+
+    vdiff = stop_index_top-stop_index_bottom
+    if vdiff<minimum_size:
+        print('hit minimum vertical size: resorting to default size')
+        stop_index_bottom = stop_index_bottom+(int(vdiff/2))-(int(minimum_size/2))
+        stop_index_top = stop_index_top-(int(vdiff/2))+(int(minimum_size/2))
+
+    if stop_index_side<int(minimum_size/2):
+        print("hit minimum lateral size: resorting to default size")
+        stop_index_side = int(minimum_size/2)
+
+
+    return stop_index_top, stop_index_bottom, stop_index_side
+    
+def find_limits_com(stop_index_side,minimum_size,centre,yres):
+    stop_index_bottom = (int(centre)/yres - int(minimum_size/2))
+    stop_index_top = int(centre)/yres + int(minimum_size/2)
+    stop_index_bottom
+    return int(stop_index_top), int(stop_index_bottom), int(stop_index_side)
+
+def ordered_cylindrical_grid(theta_len,z_len,r_len,thetas,z,r,values):
+    # creating long 2D arrays which correspond to each point in the frame -> ordered by constant z 
+    rr = []
+    zz = []
+    tt = []
+    ll = []
+
+    for i in range(z_len):
+        #constant z iteration
+        z_ordered = []
+        r_ordered = []
+        l_ordered = []
+        theta_ordered = []
+        for j in range(r_len):
+            #constant r iteration with all theta
+            arr_z = np.repeat(z[i],theta_len).tolist()
+            arr_r = np.repeat(r[j],theta_len).tolist()
+            arr_l = np.repeat(values[j][i],theta_len).tolist()
+            r_ordered.append(arr_r) # r at i (const in j loop)
+            z_ordered.append(arr_z) # z at j (iterating through const r)
+            theta_ordered.append(thetas) # for all theta
+            l_ordered.append(arr_l)
+        rr.append(np.asarray(r_ordered).flatten())
+        zz.append(np.asarray(z_ordered).flatten())
+        ll.append(np.asarray(l_ordered).flatten())
+        tt.append(np.asarray(theta_ordered).flatten())
+    
+    return rr,zz,tt,ll
+
+def ordered_cartesian_grid(ax1,ax2,thetas,z_cart):
+    z_ordered = []
+    num_z = len(ax2)
+    num_xtheta = len(ax1)*len(thetas)
+
+    for i in range(num_z):
+        z_ = z_cart[(0+(num_xtheta*i)):(0+(num_xtheta*(i+1)))]
+        z_ordered.append(z_)
+        
+    return z_ordered
+
+
+def main():
+
+    ###########   input arguments    ###############
+
+    """
+    You can input arguments on the command line OR just use default to the ones in default.framelum.yaml
+    The default values are set in the YAML file, which is loaded at the beginning of the script.
+    """
+    # Load defaults from YAML
+    yaml_file = os.path.join(CONFIGS,'default_simulation.yaml')
+    args = tools.get_arguments(yaml_file,HELP_DICT)
+
+    # Unpack arguments
+
+    system_name = args.system_name
+    image_timestep = args.image_timestep
+    kappa = args.kappa
+    theta = args.theta
+    distance_in_pc = args.distance_in_pc
+    alpha = args.alpha
+    P_sim = args.P_sim
+    L_sim = args.L_sim
+    yres = args.yresolution
+    nu_observe = args.nu_observe
+    eta = args.eta
+    dtype = args.dtype
+    load_interp = args.load_interp
+
+    #some calculated and related values
+    exponent = (3-alpha)/2
+    p = (4*exponent) - 5 #2.01
+    viewing_angle = (2*np.pi)/360 *theta
+    
+
+    ###########    setups    ###############
+    data_dir = os.path.join(SIM_DAT, system_name)
+    plots_folder = os.path.join(PLOTS, system_name)
+    results_folder = SIM_DAT
+
+    ###########   load in simulation data ##################
+     
+   
+
+    # this section is specific to PLUTO simulations, where the data is stored in a specific format, and is cylindrical axisymmetric
+    D = tools.load_data_obj(data_dir,image_timestep,data_type=dtype)
+    v = D.tr1*((kappa*D.prs)**exponent) #pseudo emissivity, 2D array
+    x1 = D.x1 # x1 is the radial axis
+    x2 = D.x2 # x2 is the vertical axis
+
+
+    ############      crop image        #################
+
+    """if emission isnt in the whole domain then crop before you do the analysis (to save computational time)
+    """
+
+    #buffer_size = 100
+    #minimum_size = 1300
+    #stop_index_top, stop_index_bottom, stop_index_side = find_limits(v,x1,x2,buffer_size,minimum_size)
+
+    # open the displacement file and get the centre of the image, this is to crop the image such that the blob is in the middle
+    # might not be good for general use, hence why I have left the other function in
+    file_disp = 'disp_array_'+str(system_name)
+    init_offset = 200
+    d_vals = tools.load_list(data_dir,file_disp)+init_offset
+    centre = d_vals[image_timestep]
+    stop_index_side = 650
+    minimum_size = 1300
+
+    stop_index_top, stop_index_bottom, stop_index_side = find_limits_com(stop_index_side,minimum_size,centre,yres)
+    print('top: '+str(stop_index_top))
+    print('bottom: '+str(stop_index_bottom))
+    print('side: '+str(stop_index_side))
+    em = (v[:stop_index_side].T[stop_index_bottom:stop_index_top]).T #psuedo emissivity, 2D array 
+    ax1 = x1[:stop_index_side]
+    ax2 = x2[stop_index_bottom:stop_index_top]
+
+    crop_name = 'simimage_originalcrop_'+system_name+'_'+str(image_timestep)
+    crop_cbartitle='pseudo-emissivity sim units'
+    tools.plot_basic(ax1,ax2,em,crop_name,crop_cbartitle,system_name,plots_folder) #save the cropped image original
+
+    
+   ###### ######      boost emissivity (special relativity)        ###############################
+
+    beta = (D.vx2[:stop_index_side].T[stop_index_bottom:stop_index_top]).T
+    values = tools.doppler_boost_lum(beta,viewing_angle,alpha,em)
+
+
+    # ---------- all below may be replaced by DART at some point --------------- #
+
+    ############      make a cylindrical grid        #########################
+
+    r = ax1 #r, 160 vals
+    z = ax2 #z, 1600 vals
+    thetas = np.linspace(0,np.pi/2,130) #create some theta to wrap it around pi/2, arbitrary number of steps for now
+    theta_len = len(thetas)
+    z_len = len(z)
+    r_len = len(r)
+
+    rr, zz, tt, ll = ordered_cylindrical_grid(theta_len,z_len,r_len,thetas,z,r,values)
+
+    #convert to cartesian:
+    x_cart, y_cart, z_cart = tools.cyl_to_cart(rr, zz, tt)
+
+    #order cartesian grid:
+    z_ordered = ordered_cartesian_grid(ax1,ax2,thetas,z_cart)
+
+    #create new grid 2D to interpolate on
+    x_max = y_max = np.max(r)
+    grid_size = r[1]-r[0]
+    r_len = len(r)
+    #the spacing of the goal grid is the same as the original 2D cylindrical grid
+    x_ar = np.linspace(-(grid_size/2),x_max,r_len+1)[1:]
+    y_ar = np.linspace(-(grid_size/2),y_max,r_len+1)[1:]
+    grid_x, grid_y = np.meshgrid(x_ar,y_ar)
+
+    ############      interpolate        ###########################################
+
+    print('beginning interpolation')
+    interp_clean, integrated_frames = tools.interpolate_cyl_to_cart(x_cart,y_cart,z_ordered,ll,grid_x,grid_y,grid_size,system_name,results_folder,image_timestep,load_interp)
+
+    #plot a horizontal slice to check interpolation interpolation#
+    populated_slices = []
+    for index, arr in enumerate(interp_clean):
+        # get array of indices with detection in it 
+        if np.any(arr):
+            populated_slices.append(index)
+
+    test_slice_index = populated_slices[int(len(populated_slices)/2)] #get a test slice about halfway through detection
+    slice_name = 'simimage_interpslice_'+str(test_slice_index)+'_'+system_name+'_'+str(image_timestep)
+    slice_cbartitle='pseudo emissivity sim units'
+    tools.plot_basic(grid_x,grid_y,interp_clean[test_slice_index],slice_name,slice_cbartitle,system_name,plots_folder)
+
+    #plot a rotated slice 
+    rotate_name = 'simimage_interpintegrated_'+system_name+'_'+str(image_timestep)
+    rotate_cbartitle = 'pseudo emissivity sim units'
+    tools.plot_basic(ax1,ax2,np.asarray(integrated_frames).T,rotate_name,rotate_cbartitle,system_name,plots_folder)
+
+    ############      convert to janskys        #######################################
+
+    lum_real_unit = tools.lum_unit_si(eta,P=P_sim,L=L_sim,nu=nu_observe, q=p) #W Hz^-1 sr^-1
+    lum_sim = np.asarray(integrated_frames)
+    lum_true = lum_sim*lum_real_unit # W Hz^-1 sr^-1
+    lum_jansky = lum_true*(10**26)*np.pi*4 # 10^26 W Hz^-1  -> 10^-26 W m^-2 Hz^-1 = 1 jansky 
+    distance = distance_in_pc*3.086*(10**16) # convert parsec to m 
+
+    boosted_lum = np.asarray(lum_jansky / (4*np.pi*(distance**2)),dtype='float64')
+    tools.save_list(boosted_lum,results_folder,'pixel_lum_'+system_name+'_'+str(image_timestep)+'_'+str(nu_observe/(1e9))+str('GHz'))
+
+    frame_flux = np.sum((boosted_lum*10**3))*2 
+    print('total luminosity in frame in mJy: '+str(frame_flux))
+
+    # plot image in jaskys and arcseconds 
+
+    x = tools.m_to_arcseconds(ax1*L_sim,distance_in_pc)
+    y = tools.m_to_arcseconds(ax2*L_sim,distance_in_pc)
+    radio_name = 'radio_frame_'+system_name+'_'+str(image_timestep)+'_'+str(nu_observe/(1e9))+str('GHz')
+    tools.plot_radio(x,y,(boosted_lum*10**3).T,radio_name,'mJy per pixel',system_name,plots_folder)
+
+
+if __name__ == "__main__":
+    main()
+===== ./blobrender/tools/__init__.py =====
+from .pluto_luminosity_conversion import lum_unit_si
+from .sim_analysis_tools import (gamma_to_beta, theta_from_beta, cyl_to_cart,load_data_obj,doppler_boost_lum, interpolate_cyl_to_cart, m_to_arcseconds, angle_to_boost, beta_to_gamma,rgb2gray)
+from .plotting import plot_basic, plot_radio, save_fig
+from .basics import (save_list, load_list, loader_bar, get_arguments,update_yaml)
+from .image_checks import (baseline_range_from_ms, check_image_pixelsize, check_image_fov, get_min_max_frequency)
+
+===== ./blobrender/tools/add_MS_column.py =====
+#!/usr/bin/env python
+# ian.heywood@physics.ox.ac.uk
+
+import sys
+import argparse
+from pyrap.tables import table
+import numpy as np
+
+def add_data_col(msname, modelcol, newcol):
+    tt = table(msname, readonly=False)
+    colnames = tt.colnames()
+
+    if newcol in colnames:
+        print(f"{newcol} already exists — replacing it")
+
+        # Remove old column (not supported directly — workaround by renaming)
+        alt_name = newcol + "_OLD"
+        print(f"Renaming {newcol} → {alt_name} to avoid conflict")
+        tt.renamecol(newcol, alt_name)
+
+    # Add new writable column
+    print(f"Creating new column {newcol}")
+    desc = tt.getcoldesc(modelcol)
+    desc['name'] = newcol
+    desc['comment'] = desc['comment'].replace(' ', '_')
+    tt.addcols(desc)
+
+    # Initialize with zeros
+    model_data = tt.getcol(modelcol)
+    try:
+        tt.putcol(newcol, np.zeros_like(model_data))
+        print(f"{newcol} created and initialized successfully.")
+    except RuntimeError as e:
+        print(f"ERROR: Column was added, but could not be initialized: {e}")
+
+    tt.close()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Add a new visibility column to a Measurement Set.")
+    parser.add_argument('--ms_path', type=str, help='Path to the Measurement Set (e.g., my.ms)')
+    parser.add_argument('--modelcol', type=str, default='MODEL_DATA', help='Name of the model data column (default: MODEL_DATA)')
+    parser.add_argument('--newcol', type=str, default='NOISY_MODEL', help='Name of the new column to add (default: NOISY_MODEL)')
+
+    args = parser.parse_args()
+    modelcol = args.modelcol
+    newcol = args.newcol
+    ms_path = args.ms_path
+
+    add_data_col(ms_path,modelcol,newcol)
+
+if __name__ == '__main__':
+
+    main()
+===== ./blobrender/tools/add_noise_pyrap.py =====
+#!/usr/bin/env python
+
+import numpy as np
+import yaml
+from pyrap.tables import table
+import argparse
+
+def load_sefd_config(filepath="sefd.yaml"):
+    with open(filepath, "r") as f:
+        return yaml.safe_load(f)['sefd']
+
+def add_visibility_noise_from_names(ms_path, sefd_dict_filename, delta_nu, t_int, column='MODEL_DATA', rowchunk=1000):
+    """
+    Add thermal noise to visibilities in a Measurement Set using per-antenna SEFDs, writing in chunks.
+
+    Parameters:
+    -----------
+    ms_path : str
+        Path to the Measurement Set.
+
+    sefd_dict_filename : str
+        Path to YAML file with SEFDs keyed by antenna name.
+
+    delta_nu : float
+        Channel bandwidth in Hz.
+
+    t_int : float
+        Integration time per visibility.
+
+    column : str
+        Column to write noise into.
+
+    rowchunk : int
+        Number of rows to process at a time.
+    """
+    # Load SEFD dictionary
+    sefd_dict = load_sefd_config(sefd_dict_filename)
+
+    # Load antenna mapping
+    ant_table = table(ms_path + '::ANTENNA')
+    ant_names = ant_table.getcol("NAME")
+    ant_index_to_name = {i: name for i, name in enumerate(ant_names)}
+    ant_table.close()
+
+    # Open MS table
+    ms = table(ms_path, readonly=False)
+
+    # Confirm column exists
+    if column not in ms.colnames():
+        raise ValueError(f"Column '{column}' does not exist in {ms_path}")
+
+    # Optionally copy MODEL_DATA to column
+    if column != 'MODEL_DATA' and 'MODEL_DATA' in ms.colnames():
+        print(f"Initializing {column} with contents of MODEL_DATA")
+        model_data = ms.getcol('MODEL_DATA')
+        ms.putcol(column, model_data)
+
+    ant1 = ms.getcol("ANTENNA1")
+    ant2 = ms.getcol("ANTENNA2")
+    nrows = ms.nrows()
+
+    # Get the shape from the first row
+    one_row = ms.getcell(column, 0)
+    npol, nchan = one_row.shape
+
+    denom = np.sqrt(2 * delta_nu * t_int)
+
+    print(f"Adding noise to {column} in chunks of {rowchunk} rows...")
+
+    for start in range(0, nrows, rowchunk):
+        end = min(start + rowchunk, nrows)
+        rows = end - start
+
+        # Read chunk
+        data_chunk = ms.getcol(column, startrow=start, nrow=rows)
+        print(f"data_chunk shape: {data_chunk.shape}")
+        for rel_row in range(rows):
+            abs_row = start + rel_row
+            i, j = ant1[abs_row], ant2[abs_row]
+            if i == j:
+                continue
+
+            name1 = ant_index_to_name[i]
+            name2 = ant_index_to_name[j]
+
+            sefd1 = sefd_dict.get(name1)
+            sefd2 = sefd_dict.get(name2)
+
+            if sefd1 is None or sefd2 is None:
+                raise ValueError(f"Missing SEFD for one of: {name1}, {name2}")
+
+            sigma = np.sqrt(sefd1 * sefd2) / denom
+            nchan, npol = data_chunk.shape[1:3]
+            noise_real = np.random.normal(0, sigma, (nchan, npol))
+            noise_imag = np.random.normal(0, sigma, (nchan, npol))
+            noise = noise_real + 1j * noise_imag
+
+            data_chunk[rel_row, :, :] += noise
+
+        # Write updated chunk
+        ms.putcol(column, data_chunk, startrow=start, nrow=rows)
+
+    ms.close()
+    print(f"Noise added to column '{column}'")
+
+def main():
+    parser = argparse.ArgumentParser(description='Add noise to visibilities in a Measurement Set.')
+    parser.add_argument('--ms_path', type=str, required=True, help='Path to the Measurement Set (e.g., eMERLIN.ms).')
+    parser.add_argument('--sefd_dict_filename', type=str, required=True, help='YAML file with per-antenna SEFDs.')
+    parser.add_argument('--delta_nu', type=float, default=1e6, help='Channel bandwidth in Hz (default: 1e6).')
+    parser.add_argument('--t_int', type=float, default=1.0, help='Integration time per visibility in seconds.')
+    parser.add_argument('--column', type=str, default='MODEL_DATA', help='Column to inject noise into.')
+    parser.add_argument('--rowchunk', type=int, default=1000, help='Number of rows to process at once.')
+
+    args = parser.parse_args()
+    add_visibility_noise_from_names(
+        ms_path=args.ms_path,
+        sefd_dict_filename=args.sefd_dict_filename,
+        delta_nu=args.delta_nu,
+        t_int=args.t_int,
+        column=args.column,
+        rowchunk=args.rowchunk
+    )
+
+if __name__ == '__main__':
+    main()
+===== ./blobrender/tools/basics.py =====
+import os
+import numpy as np
+import yaml
+import argparse
+from blobrender.help_strings import HELP_DICT, TYPES_DICT
+
+
+
+def save_list(d,folder,name):
+    """ saves a np array into a given location
+    """
+    if not os.path.isdir(folder):
+        os.mkdir(folder)
+    file = folder+'/'+name+'.npy'
+    np.save(file,d)
+
+def load_list(folder, name):
+    """loads a numpy array from a given location
+    """
+    file = folder+'/'+name+'.npy'
+    arr = np.load(file,allow_pickle=True)
+    return arr
+
+def loader_bar(i,range,modulo): #just for output purposes
+    perc = int((i/range)*100)
+    prev_perc = int(((i-1)/range)*100)
+    if i==0:
+        s = str(0)+"%"
+        print(s,end="...",flush=True)
+    if perc%modulo==0 and perc!=prev_perc:
+        s = str(perc)+"%"
+        print(s,end="...",flush=True)
+        prev_perc=perc+modulo
+
+def get_arguments(default_yaml_file,help_dict=None,description=' '):
+    # Step 1: Pre-parse --config to determine which YAML file to use
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument('--config', type=str, default=default_yaml_file,
+                            help="Path to the YAML config file (default: %(default)s)")
+    args_config, remaining_argv = pre_parser.parse_known_args()
+    yaml_file = args_config.config
+
+    
+    # Step 2: Load defaults from YAML
+    with open(yaml_file, 'r') as f:
+        defaults = yaml.safe_load(f)
+
+    # Step 3: Enforce types from TYPES_DICT
+    for key, value in defaults.items():
+        desired_type = TYPES_DICT.get(key)
+        if desired_type is not None and not isinstance(value, desired_type):
+            try:
+                # Special handling for bool, since bool('False') is True
+                if desired_type is bool and isinstance(value, str):
+                    value = value.lower() == "true"
+                else:
+                    value = desired_type(value)
+            except Exception:
+                pass  # If conversion fails, keep original
+            defaults[key] = value      
+    
+    # Step 4: Filter help_dict to only keys present in the YAML
+    filtered_help = {k: v for k, v in (help_dict or HELP_DICT).items() if k in defaults}
+    
+    # Step 5: Main parser with all arguments
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('--config', type=str, default=default_yaml_file,
+                        help="Path to the YAML config file (default: %(default)s)")    
+    for key, value in defaults.items():
+        arg_type = TYPES_DICT.get(key, type(value))
+        help_str = filtered_help.get(key, f'(default from YAML: {value})')
+        # Handle booleans as store_true/store_false
+        if isinstance(value, bool):
+            parser.add_argument(f'--{key}', type=lambda x: (str(x).lower() == 'true'), default=value, help=help_str)
+        else:
+            parser.add_argument(f'--{key}', type=arg_type, default=value, help=help_str)
+
+    args = parser.parse_args(remaining_argv)
+
+    print(f"Using config file: {yaml_file}")
+
+    # Step 6: Update YAML if any values changed
+    updated = False
+    changes = []
+    for key in defaults:
+        arg_val = getattr(args, key)
+        if defaults[key] != arg_val:
+            changes.append(f"{key}: {defaults[key]} -> {arg_val}")
+            defaults[key] = arg_val
+            updated = True
+
+    if updated:
+        with open(yaml_file, 'w') as f:
+            yaml.safe_dump(defaults, f, default_flow_style=False)
+        print(f"Updated {yaml_file} with new values:")
+        for change in changes:
+            print("  " + change)
+    
+    # Step 7: Print summary
+    print("\nSummary of parameters used:")
+    for key in defaults:
+        arg_val = getattr(args, key)
+        source = "command line" if any(f"{key}:" in change for change in changes) else "YAML"
+        print(f"  {key}: {arg_val}   (from {source})")
+
+    return args
+
+def update_yaml(variable, new_value, yaml_path):
+    """
+    Update the fitsfile_name variable in the specified YAML file with the new fits_name.
+    """
+    with open(yaml_path, 'r') as f:
+        pred_defaults = yaml.safe_load(f)
+    pred_defaults[variable] = new_value 
+    with open(yaml_path, 'w') as f:
+        yaml.safe_dump(pred_defaults, f, default_flow_style=False)
+    print(f"Updated {variable} in {yaml_path} to {new_value}")
+===== ./blobrender/tools/calc_beamsize.py =====
+import numpy as np
+from scipy.optimize import curve_fit
+from astropy.io import fits
+from astropy.wcs import WCS
+import matplotlib.pyplot as plt
+
+def twoD_gaussian(coords, amp, xo, yo, sigma_x, sigma_y, theta, offset):
+    x, y = coords
+    xo = float(xo)
+    yo = float(yo)
+    a = (np.cos(theta)**2)/(2*sigma_x**2) + (np.sin(theta)**2)/(2*sigma_y**2)
+    b = -(np.sin(2*theta))/(4*sigma_x**2) + (np.sin(2*theta))/(4*sigma_y**2)
+    c = (np.sin(theta)**2)/(2*sigma_x**2) + (np.cos(theta)**2)/(2*sigma_y**2)
+    g = offset + amp * np.exp(-(a*(x - xo)**2 + 2*b*(x - xo)*(y - yo) + c*(y - yo)**2))
+    return g.ravel()
+
+def fit_psf_beam(fitsfile):
+    with fits.open(fitsfile) as hdul:
+        data = hdul[0].data.squeeze()
+        header = hdul[0].header
+        wcs = WCS(header)
+        pixscale_deg = np.abs(wcs.wcs.cdelt[0])
+        pixscale_arcsec = pixscale_deg * 3600
+
+    # Find peak
+    y0, x0 = np.unravel_index(np.argmax(data), data.shape)
+    size = 20
+    cutout = data[y0-size//2:y0+size//2, x0-size//2:x0+size//2]
+    x = np.linspace(0, cutout.shape[1]-1, cutout.shape[1])
+    y = np.linspace(0, cutout.shape[0]-1, cutout.shape[0])
+    x, y = np.meshgrid(x, y)
+
+    initial_guess = (cutout.max(), size//2, size//2, 3, 3, 0, np.median(cutout))
+    popt, _ = curve_fit(twoD_gaussian, (x, y), cutout.ravel(), p0=initial_guess,maxfev=10000)
+
+    # Convert sigma to FWHM
+    fwhm_x = 2.355 * popt[3] * pixscale_arcsec
+    fwhm_y = 2.355 * popt[4] * pixscale_arcsec
+    pa_deg = np.degrees(popt[5])%180
+
+    return fwhm_x, fwhm_y, pa_deg
+
+def recommend_pixel_scale(beam_major_arcsec, beam_minor_arcsec=None, pixels_per_beam=4):
+    """
+    Recommend a pixel scale for imaging based on the synthesized beam size.
+    
+    Parameters:
+        beam_major_arcsec (float): Major axis of the beam in arcseconds.
+        beam_minor_arcsec (float or None): Minor axis of the beam in arcseconds (optional).
+        pixels_per_beam (int): Number of pixels to sample the beam across (default: 4).
+    
+    Returns:
+        float: Recommended pixel scale in arcseconds per pixel.
+    """
+    if beam_minor_arcsec is None:
+        scale = beam_major_arcsec / pixels_per_beam
+    else:
+        scale = (beam_major_arcsec * beam_minor_arcsec)**0.5 / pixels_per_beam
+    return scale
+
+
+def beam_header_extract(fitsfile,nchan):
+    bmajs = []
+    bmins = []
+    bpas = []
+
+    for channel in range(nchan):
+        chanfile = f'{fitsfile}-{channel:04d}-psf.fits'
+        with fits.open(chanfile) as hdul:
+            hdr = hdul[0].header
+            #for key, value in hdr.items():
+            #    print(f"{key}: {value}")
+            bmaj = hdr.get('BMAJ')*3600
+            bmin = hdr.get('BMIN')*3600
+            bpa  = hdr.get('BPA')
+            bmajs.append(bmaj)
+            bmins.append(bmin)
+            bpas.append(bpa)
+    fwhm_x = min(bmajs)
+    indx = np.argmin(bmajs)
+    fwhm_y = bmins[indx]
+    pa_deg = bpas[indx]
+    return fwhm_x, fwhm_y, pa_deg
+
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Calculate the beam size from a FITS file.')
+    parser.add_argument('--fitsfile', type=str, required=True, help='Path to the FITS file containing the PSF.')
+    parser.add_argument('--pixels_per_beam', type=int, default=4, help='Number of pixels per beam (default: 4).')
+    parser.add_argument('--nchan', type=int, default=1, help='Number of channels.')
+    args = parser.parse_args()
+
+    fitsfile = args.fitsfile
+    pixels_per_beam = args.pixels_per_beam
+    #fwhm_x, fwhm_y, pa_deg = fit_psf_beam(fitsfile)
+    #major = max(fwhm_x, fwhm_y)
+    #minor = min(fwhm_x, fwhm_y)
+    major, minor, pa_deg = beam_header_extract(fitsfile,nchan=args.nchan)
+    pixscale = recommend_pixel_scale(major,minor,pixels_per_beam)
+    print(pixscale)
+
+
+    return
+
+
+
+if __name__ == '__main__':
+
+    main()
+===== ./blobrender/tools/change_RADEC_fits.py =====
+
+import sys
+from astropy.io import fits
+
+def update_fits_header(file_path, new_ra, new_dec):
+    # Open the FITS file in update mode
+    with fits.open(file_path, mode='update') as hdul:
+        # Access the primary header
+        header = hdul[0].header
+        
+        # Update the RA and DEC values in decimal degrees
+        header['CRVAL1'] = new_ra
+        header['CRVAL2'] = new_dec
+        
+        # Save the changes
+        hdul.flush()
+
+def main():
+    file_path = sys.argv[1] #input filename when calling python script
+    new_ra = sys.argv[2]  # New RA value in decimal degrees
+    new_dec = sys.argv[3]  # New DEC value in decimal degrees
+
+    update_fits_header(file_path, new_ra, new_dec)
+
+if __name__ == "__main__":
+        main()
+
+===== ./blobrender/tools/copy_MS_column.py =====
+#!/usr/bin/env python
+# ian.heywood@physics.ox.ac.uk
+
+
+import numpy
+import sys
+from optparse import OptionParser
+from pyrap.tables import table
+
+
+def copycol(msname,fromcol,tocol,field,rowchunk):
+
+    if field == '': 
+        tt = table(msname,readonly=False)
+    else:
+        print('Selecting FIELD_ID '+str(field))
+        t0 = table(msname,readonly=False)
+        tt = t0.query(query='FIELD_ID=='+str(field))
+
+    colnames = tt.colnames()
+    if fromcol not in colnames or tocol not in colnames:
+        print('One or more requested columns not present in MS')
+        sys.exit()
+
+    spws = numpy.unique(tt.getcol('DATA_DESC_ID'))
+    print('Spectral windows: '+str(spws))
+
+    for spw in spws:
+        spw_tab = tt.query(query='DATA_DESC_ID=='+str(spw))
+            
+        nrows = spw_tab.nrows()
+        for start_row in range(0,nrows,rowchunk):
+            nr = min(rowchunk,nrows-start_row)
+            print('Processing rows: '+str(start_row)+' to '+str(start_row+nr)+' for SPW '+str(spw))
+            spw_tab.putcol(tocol,spw_tab.getcol(fromcol,start_row,nr),start_row,nr)
+        spw_tab.done()
+    tt.done()
+
+    if field != '': t0.done()
+
+
+def main():
+
+
+    parser = OptionParser(usage = '%prog [options] msname')
+    parser.add_option('--fromcol', dest = 'fromcol', default = 'MODEL_DATA', help = 'Name of source column (default = MODEL_DATA')
+    parser.add_option('--tocol', dest = 'tocol', default = 'DIR1_DATA', help = 'Name of destination column (default = DIR1_DATA')
+    parser.add_option('--field', dest = 'field', default = '', help = 'Field selection (default = all fields)')
+    parser.add_option('--rowchunk', dest = 'rowchunk', default = 500000, help = 'Number of chunks to process at once (default = 500000)')
+    (options,args) = parser.parse_args()
+    fromcol = options.fromcol
+    tocol = options.tocol
+    field = options.field
+    rowchunk = int(options.rowchunk)
+
+
+    if len(args) != 1:
+        print('Please specify a Measurement Set')
+        sys.exit()
+    else:
+        msname = args[0].rstrip('/')
+
+
+    copycol(msname,fromcol,tocol,field,rowchunk)
+
+
+
+if __name__ == '__main__':
+
+    main()
+
+===== ./blobrender/tools/image_checks.py =====
+from scipy.spatial.distance import pdist
+from casatools import table
+import numpy as np
+
+def baseline_range(positions):
+    """
+    Compute min and max baseline lengths from Nx3 antenna position array.
+    
+    Parameters:
+        positions (np.ndarray): shape (N_antennas, 3)
+        
+    Returns:
+        tuple: (min_distance, max_distance) in meters
+    """
+    dists = pdist(positions)  # fast condensed distance matrix
+    return np.min(dists), np.max(dists)
+
+def baseline_range_from_ms(ms_path):
+    tb = table()
+    tb.open(ms_path + "/ANTENNA")
+    positions = tb.getcol("POSITION").T  # shape: (N_antennas, 3)
+    tb.close()
+    return baseline_range(positions)
+
+def check_image_pixelsize(pixel_size_arcsec, max_baseline_m, freq_hz):
+    """
+    Check if the input pixel size (arcsec) is greater than 1/(2 * (max_baseline / wavelength)) in radians.
+    Returns True if pixel size is OK, False if too lorge and in chorge.
+
+    Parameters:
+        pixel_size_arcsec (float): Pixel size in arcseconds.
+        max_baseline_m (float): Maximum baseline in meters.
+        freq_hz (float): Observing frequency in Hz.
+
+    Returns:
+        bool: True if pixel size is >= 1/(2 * (max_baseline / wavelength)) in radians, else False.
+    """
+    c = 299792458.0  # speed of light in m/s
+    wavelength = c / freq_hz    
+    u_max = max_baseline_m / wavelength
+    min_pixel_rad = 1 / (2 * u_max)  # radians
+    pixel_rad = np.deg2rad(pixel_size_arcsec / 3600.0)
+    return pixel_rad <= min_pixel_rad, np.degrees(min_pixel_rad) * 3600.0  # return pixel size in arcseconds for convenience
+
+def check_image_fov(fov_arcsec, min_baseline_m, freq_hz):
+    """
+    Check if the input field of view (arcsec) is greater than 1/(2 * (min_baseline / wavelength)) in radians.
+    Returns True if FOV is OK, False if too smol.
+
+    Parameters:
+        fov_arcsec (float): Field of view in arcseconds.
+        min_baseline_m (float): Minimum baseline in meters.
+        freq_hz (float): Observing frequency in Hz.
+
+    Returns:
+        bool: True if FOV is >= 1/(2 * (min_baseline / wavelength)) in radians, else False.
+    """
+    c = 299792458.0  # speed of light in m/s
+    wavelength = c / freq_hz    
+    u_min = min_baseline_m / wavelength
+    min_fov_rad = 1 / (2 * u_min)  # radians
+    fov_rad = np.deg2rad(fov_arcsec / 3600.0)
+    return fov_rad >= min_fov_rad, np.degrees(min_fov_rad) * 3600.0  # return FOV in arcseconds for convenience
+
+def get_min_max_frequency(ms_path):
+    """
+    Extract the minimum and maximum frequency (in Hz) from the SPECTRAL_WINDOW table of a Measurement Set.
+    """
+    from casatools import table
+    tb = table()
+    tb.open(ms_path + "/SPECTRAL_WINDOW")
+    chanfreq = tb.getcol("CHAN_FREQ")  # shape: (nchan, nspw) or (nchan,)
+    tb.close()
+    freqs = np.array(chanfreq).flatten()
+    return freqs.min(), freqs.max()
+
+
+
+===== ./blobrender/tools/image_math.py =====
+import numpy
+import shutil
+import sys
+from astropy.io import fits
+
+
+def getImage(fitsfile):
+	input_hdu = fits.open(fitsfile)[0]
+	if len(input_hdu.data.shape) == 2:
+	        image = numpy.array(input_hdu.data[:,:])
+	elif len(input_hdu.data.shape) == 3:
+	        image = numpy.array(input_hdu.data[0,:,:])
+	else:
+	        image = numpy.array(input_hdu.data[0,0,:,:])
+	return image
+
+
+def flushFits(newimage,fitsfile):
+	f = fits.open(fitsfile,mode='update')
+	input_hdu = f[0]
+	if len(input_hdu.data.shape) == 2:
+	        input_hdu.data[:,:] = newimage
+	elif len(input_hdu.data.shape) == 3:
+	        input_hdu.data[0,:,:] = newimage
+	else:
+	        input_hdu.data[0,0,:,:] = newimage
+	f.flush()
+
+
+im1 = sys.argv[1]
+operator = sys.argv[2]
+im2 = sys.argv[3]
+out = sys.argv[4]
+
+shutil.copyfile(im1,out)
+
+data1 = getImage(im1)
+data2 = getImage(im2)
+
+if operator == 'plus':
+	dataout = data1+data2
+elif operator == 'minus':
+	dataout = data1-data2
+elif operator == 'times':
+	dataout = data1*data2
+elif operator == 'over':
+	dataout = data1/data2
+
+flushFits(dataout,out)
+
+===== ./blobrender/tools/plotting.py =====
+import matplotlib.pyplot as plt
+import os
+
+
+
+def set_plot_defaults():
+    """
+    assign default plot settings
+    """
+    ## FIGURE
+    #plt.rcParams["text.usetex"] = "True"
+
+    ## FONTplut 
+    #plt.rcParams['font.serif']=['cm']
+    #plt.rcParams['font.family']='serif'
+    # plt.rcParams['font.serif']=['cm']
+    #plt.rcParams['text.latex.preamble']=r'\usepackage{amsmath}'
+
+    plt.rcParams['font.size']=18
+    plt.rcParams['xtick.labelsize']=15
+    plt.rcParams['ytick.labelsize']=15
+    plt.rcParams['legend.fontsize']=14
+    plt.rcParams['axes.titlesize']=16
+    plt.rcParams['axes.labelsize']=16
+    plt.rcParams['axes.linewidth']=2
+    plt.rcParams["lines.linewidth"] = 2.2
+    ## TICKS
+    plt.rcParams['xtick.top']='True'
+    plt.rcParams['xtick.bottom']='True'
+    plt.rcParams['xtick.minor.visible']='True'
+    plt.rcParams['xtick.direction']='out'
+    plt.rcParams['ytick.left']='True'
+    plt.rcParams['ytick.right']='True'
+    plt.rcParams['ytick.minor.visible']='True'
+    plt.rcParams['ytick.direction']='out'
+    plt.rcParams['xtick.major.width']=1.5
+    plt.rcParams['xtick.minor.width']=1
+    plt.rcParams['xtick.major.size']=4
+    plt.rcParams['xtick.minor.size']=3
+    plt.rcParams['ytick.major.width']=1.5
+    plt.rcParams['ytick.minor.width']=1
+    plt.rcParams['ytick.major.size']=4
+    plt.rcParams['ytick.minor.size']=3
+
+def plot_basic(a1,a2,data,figname,cbartitle,title,results_folder):
+    fig = plt.figure(figsize=[8,8])
+    plt.pcolormesh(a1,a2,data.T,shading='auto')
+    plt.pcolormesh(-a1,a2,data.T,shading='auto')
+    ax = plt.gca()
+    ax.set_aspect('equal', adjustable='box')
+    cbar = plt.colorbar()
+    plt.title(title)
+    cbar.set_label(cbartitle)
+    save_fig(results_folder,figname,overwrite=True)
+    plt.close()
+    del fig, ax, cbar
+
+def plot_radio(a1,a2,data,figname,cbartitle,title,results_folder):
+    fig = plt.figure(figsize=[8,8])
+    plt.pcolormesh(a1,a2,data.T,cmap='afmhot',shading='auto')
+    plt.pcolormesh(-a1,a2,data.T,cmap='afmhot',shading='auto')
+    ax = plt.gca()
+    ax.set_aspect('equal', adjustable='box')
+    cbar = plt.colorbar()
+    plt.title(title)
+    plt.xlabel('arcseconds')
+    plt.ylabel('arcseconds')
+    cbar.set_label(cbartitle)
+    save_fig(results_folder,figname,overwrite=True)
+    plt.close()
+    del fig, ax, cbar
+
+def save_fig(dir_title,fig_title,overwrite=False):
+    """saves a figure to a given location. includes a switch to 
+    check if you want to overwrite the figure if it already exists. 
+    """
+    if not os.path.isdir(dir_title):
+        os.mkdir(dir_title)
+    if os.path.exists(dir_title+"/"+fig_title+".jpg"):
+        if overwrite==True:
+            print("Overwriting existing figure!!!")
+            plt.savefig(dir_title+"/"+fig_title+'.jpg',bbox_inches='tight',dpi=400)
+        else:
+            print("Not overwriting existing figure!!!!")
+    else:
+        print("saving new figure!!")
+        plt.savefig(dir_title+"/"+fig_title+'.jpg',bbox_inches='tight',dpi=400)
+===== ./blobrender/tools/pluto_luminosity_conversion.py =====
+import numpy as np
+from astropy import constants as const
+import astropy.units as u 
+kpc = const.kpc.si.value
+
+def lum_unit_si(eta=0.1, gmm1=10, gmm2 = 1e5, c=0.05269, P=1.6e-11, L=2.1 * kpc, q=2.2, nu=(178 * 1e6)):
+	'''
+	Calculates the luminosity unit in W/Hz/sr given a unit pressure and length in SI units, and with various assumptions
+	about the electron spectrum and departure from equipartition.
+
+	equation on page 188 of Hardcastle and Krause 2013: 
+	https://ui.adsabs.harvard.edu/abs/2013MNRAS.430..174H/abstract
+
+	Parameters:
+		eta 		float
+					departure from equipartition  <- eta=3/4 corresponds to minimum energy
+		gmm1,gmm2 	float
+					min and max Lorentz factors of electron distribution
+		c 			float
+		P 			float 
+					SI simulation unit of pressure (get from PLUTO output file and convert)
+		L 			float 
+					SI simulation unit of length (get from PLUTO output file and convert)
+		q 			float 
+					particle spectral index 
+		nu 			float
+					frequency in Hz 
+
+	'''
+	# calculate the integral of E^1-q dE. 
+	I = get_I(q, gmm1, gmm2)
+
+	# the various terms that go into the expression separated out a bit arbitrarily
+	const1 = c * (const.e.si.value ** 3) / const.eps0.si.value / const.c.si.value / const.m_e.si.value 
+	term1 = (nu * (const.m_e.si.value **3) * (const.c.si.value**4) / const.e.si.value) ** (-(q-1)/2.0)
+	term2 = 3.0 * (P ** ((q + 5) / 4)) / 4.0 / np.pi / I 
+	term3 = (6.0 * const.mu0.si.value * eta) ** ((q + 1) / 4)
+	term4 = (1.0 + eta) ** (-(q + 5) / 4)
+	term5 = L ** 3 
+	lum = const1 * term1 * term2 * term3 * term4 * term5 
+	return (lum)
+
+def get_lum_unit_cgs(unit_p, unit_l, **lum_unit_kwargs):
+	'''
+	Calculates the luminosity unit in W/Hz/sr given a unit pressure and length, both in CGS units, 
+	and with various assumptions about the electron spectrum and departure from equipartition 
+
+	Parameters:
+		unit_p 			float 
+						SI simulation unit of pressure (get from PLUTO output file and convert)
+		unit_l 			float 
+						SI simulation unit of length (get from PLUTO output file and convert)
+		lum_unit_kwargs kwargs 
+						keyword arguments to pass to lum_unit_si 	
+
+	Returns:
+		lum 			float 
+						luminosity unit in erg/s/Hz/sr 
+	'''
+	P = unit_p * u.Unit("Ba") # Baryes (CGS pressure)
+	L = unit_l * u.Unit("cm")
+
+	# factor of 1e7 here converts watts to erg/s
+	lum = lum_unit_si(P=P.si.value, L=L.si.value, **lum_unit_kwargs) * 1e7 
+	
+	return (lum)
+    
+
+def get_I(q, gmm1, gmm2):
+	'''
+	calculate the integral of E^1-q dE. 
+	'''
+	mcsq = const.m_e.si.value * const.c.si.value * const.c.si.value
+	E1 = gmm1 * mcsq 
+	E2 = gmm2 * mcsq
+	if q == 2:
+		term1 = np.log(E2/E1)
+		prefactor = 1.0
+	else:
+		prefactor = 1.0 / (2 - q)
+		exponent = (2 - q)
+		term1 = (E2**exponent - E1**exponent)
+
+	return (term1 * prefactor)
+===== ./blobrender/tools/populatefits.py =====
+import numpy
+import shutil
+import argparse
+from astropy.io import fits
+from blobrender.paths import SIM_DAT, RESULTS
+import os
+
+def get_image(fitsfile):
+        input_hdu = fits.open(fitsfile)[0]
+        if len(input_hdu.data.shape) == 2:
+                image = numpy.array(input_hdu.data[:,:])
+        elif len(input_hdu.data.shape) == 3:
+                image = numpy.array(input_hdu.data[0,:,:])
+        else:
+                image = numpy.array(input_hdu.data[0,0,:,:])
+        return image
+
+
+def flush_fits(newimage,fitsfile):
+        """
+        Update the data of a FITS file with a new image array.
+
+        Parameters
+        ----------
+        newimage : numpy.ndarray
+                The new image data to write into the FITS file. Its shape must be compatible with the target HDU's data shape.
+        fitsfile : str
+                Path to the FITS file to be updated.
+        """
+
+        f = fits.open(fitsfile,mode='update')
+        input_hdu = f[0]
+        if len(input_hdu.data.shape) == 2:
+                input_hdu.data[:,:] = newimage
+        elif len(input_hdu.data.shape) == 3:
+                input_hdu.data[0,:,:] = newimage
+        else:
+                input_hdu.data[0,0,:,:] = newimage
+        f.flush()
+
+def copy_and_paste_fits(model_fits, wsclean_fits, op_fits):
+        """
+        Copy the wsclean fits file into the op_fits file and populate it with data from model_fits.
+
+        Parameters
+        ----------
+        model_fits : str
+                Path to the original FITS file containing simulated data.
+        wsclean_fits : str
+                Path to the wsclean FITS file to be copied.
+        op_fits : str
+                Path to the output FITS file where data will be populated.
+        """
+        
+        shutil.copyfile(wsclean_fits, op_fits)  # Copy -image into -model fits
+        img = get_image(model_fits)  # Original fits with your simulated data
+        flush_fits(img, op_fits)  # Put data into the -model fits file
+        outhdu = fits.open(op_fits,mode='update')
+        outhdr = outhdu[0].header
+        outhdr.set('BUNIT','JY/PIXEL') #set the units to Jy/pixel, this is what wsclean expects
+        hh = outhdr.get('HISTORY') 
+        for i in range(0,len(hh)):
+                outhdr.remove('HISTORY')
+                outhdu.flush() #destroy the evidence of this mess we made 
+
+def add_chan_suffix(fname, ch_str):
+    base, ext = os.path.splitext(fname)
+    # Find the last '-word' in the base
+    parts = base.split('-')
+    if len(parts) > 1:
+        # Insert channel string before the last part
+        new_base = '-'.join(parts[:-1]) + f'-{ch_str}' + '-' + parts[-1]
+    else:
+        # No dash found, just append
+        new_base = base + f'-{ch_str}'
+    return f"{new_base}{ext}"
+
+def main():
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--model_fits', required=True)
+        parser.add_argument('--wsclean_fits', required=True)
+        parser.add_argument('--op_fits', required=True)
+        parser.add_argument('--nchan', required=True)
+        args = parser.parse_args()
+        nchan = int(args.nchan)
+
+        if nchan == 1:
+                model_fits = os.path.join(SIM_DAT, os.path.basename(args.model_fits)) #'fitsfile_name.fits'
+                wsclean_fits = args.wsclean_fits #'predict_file_name-image.fits' (correct format, exists)
+                op_fits = args.op_fits #'predict_file_name_0-model.fits' (doesnt yet exist, we will put sim data in here)
+                copy_and_paste_fits(model_fits,wsclean_fits,op_fits)
+        elif nchan > 1:
+                for ch in range(nchan):
+                       ch_str = f"{ch:04d}"
+                       model_fits = os.path.join(SIM_DAT, os.path.basename(args.model_fits))
+                       wsclean_fits = add_chan_suffix(args.wsclean_fits,ch_str)
+                       op_fits = add_chan_suffix(args.op_fits,ch_str)
+                       copy_and_paste_fits(model_fits,wsclean_fits,op_fits)
+                ch_str = "MFS"
+                model_fits = os.path.join(SIM_DAT, os.path.basename(args.model_fits))
+                wsclean_fits = add_chan_suffix(args.wsclean_fits,ch_str)
+                op_fits = add_chan_suffix(args.op_fits,ch_str)
+                copy_and_paste_fits(model_fits,wsclean_fits,op_fits)
+                       
+if __name__ == "__main__":
+        main()
+
+
+===== ./blobrender/tools/sim_analysis_tools.py =====
+import numpy as np
+import scipy
+from scipy.interpolate import griddata
+import os 
+import pyPLUTO as pypl
+import pyPLUTO.pload as pp
+from . import basics as b
+
+def rgb2gray(rgb):
+    return np.dot(rgb[...,:3], [0.2989, 0.5870, 0.1140])
+
+def load_data_obj(ddir, num=-1, data_type='dbl'):
+    """
+    Function to load a .dbl file into an object ad a corresponding image
+
+    Parameters
+    ----------
+    wdir_in_PLUTO : string
+        name of local directory in $PLUTO_DIRs
+    num : int
+        timestep to load, default is the last timestep, or else specify between zero and last step
+
+    Returns
+    -------
+    D : Data object
+        pyPLUTO data object with all attributes from .dbl file
+    I : Image object
+        pyPLUTO image object made from Data object 
+
+    """
+    data_dir = ddir+'/'
+    if num==-1:
+        nlinf = pypl.nlast_info(w_dir=data_dir)
+        print("data type: "+data_type)
+        D = pp.pload(nlinf['nlast'],w_dir=data_dir,datatype=data_type) # Loading the data into a pload object D.
+    else: 
+        print("data type: "+data_type)
+        D = pp.pload(num,w_dir=data_dir,datatype=data_type) # Loading the data into a pload object D.
+    return D
+
+def get_max_step(local_wdir):
+    """_summary_
+
+    Args:
+        local_wdir (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    plutodir = os.environ['PLUTO_DIR']
+    full_wdir = plutodir+local_wdir
+    try:
+        nlinf = pypl.nlast_info(w_dir=full_wdir,datatype='dbl')
+    except:
+        nlinf = pypl.nlast_info(w_dir=full_wdir,datatype='flt')
+    max_step = nlinf['nlast']
+    return max_step
+
+def gamma_to_beta(gamma):
+    beta = (1.-(gamma**-2))**0.5
+    return beta
+
+def beta_to_gamma(beta):
+    gamma = 1./((1.-beta**2)**0.5)
+    return gamma
+
+
+def cyl_to_cart(r,z,theta):
+    x = r*np.cos(theta)
+    y = r*np.sin(theta)
+    z = z
+    return x, y, z
+
+def angle_to_boost(viewing_angle,beta):
+    gamma = (1-(beta**2))**(-0.5)
+    #change minus sign for approaching (-) or receding (+) jet
+    delta = (gamma**(-1))*(1.0-beta*np.cos(viewing_angle))**(-1)
+    return delta
+
+def doppler_boost_lum(beta,viewing_angle,alpha,lum):
+    delta = angle_to_boost(viewing_angle,beta)
+    boosted_lum = lum*(delta**(2-alpha))
+    return boosted_lum
+
+def interpolate_cyl_to_cart(x_cart,y_cart,z_ordered,ll,grid_x,grid_y,grid_size,system_name,results_folder,image_timestep,load_interp=False):
+    if load_interp:
+        print("loading")
+        interp_clean = b.load_list(results_folder,'interpolated_frame_'+system_name+'_'+str(image_timestep))
+        integrated_frames = b.load_list(results_folder,'integrated_frame_'+system_name+'_'+str(image_timestep))
+    else:
+        interps = []
+        iter_num = len(z_ordered)
+        for i in range(iter_num):
+            b.loader_bar(i,iter_num,5)
+            x_arr = x_cart[i].flatten() #160x130 points -> 20800
+            y_arr = y_cart[i].flatten()
+            points = (x_arr,y_arr)
+            values = ll[i].flatten()
+            interp_grid = (grid_x,grid_y)
+            interp = griddata(points,values,interp_grid,method='linear')
+            interps.append(interp)
+        interp_clean = np.nan_to_num(interps) #remove all nans and turn them into zeros for the sake of integration 
+        b.save_list(np.asarray(interp_clean),results_folder,'interpolated_frame_'+system_name+'_'+str(image_timestep))
+        len(interp_clean)
+        integrated_frames = []
+        pixel_vol = (grid_size)**3 #multiply by the volume of each pixel when integrating
+        for frame in interp_clean:
+            integrated_frame = np.sum(frame,axis=0)*pixel_vol*2
+            integrated_frames.append(integrated_frame)
+        b.save_list(np.asarray(integrated_frames),results_folder,'integrated_frame_'+system_name+'_'+str(image_timestep))
+    return interp_clean, integrated_frames
+
+def m_to_arcseconds(m,distance_in_pc):
+    acs = (m*100)/(1.496*10**(13))*(1/distance_in_pc)
+    return acs
+
+####fix magic numbers below
+
+def theta_from_beta(beta):
+    theta = np.arccos(0.4/beta)*180/np.pi
+    return theta
+
+
+===== ./blobrender/tools/sum_MS_columns.py =====
+#!/usr/bin/env python
+# ian.heywood@physics.ox.ac.uk
+
+
+import numpy
+import sys
+from optparse import OptionParser
+from pyrap.tables import table
+
+
+def sumcol(msname,src,dest,field,subtract,rowchunk):
+
+    if field == '': 
+        tt = table(msname,readonly=False)
+    else:
+        print('Selecting FIELD_ID '+str(field))
+        t0 = table(msname,readonly=False)
+        tt = t0.query(query='FIELD_ID=='+str(field))
+
+    colnames = tt.colnames()
+    if src not in colnames or dest not in colnames:
+        print('One or more requested columns not present in MS')
+        sys.exit()
+
+    spws = numpy.unique(tt.getcol('DATA_DESC_ID'))
+    print('Spectral windows: '+str(spws))
+
+    print(msname)
+    if subtract:
+        print('Subtracting '+src+' from '+dest)
+    else:
+        print('Adding '+src+' to '+dest)
+
+    for spw in spws:
+        spw_tab = tt.query(query='DATA_DESC_ID=='+str(spw))
+
+        nrows = spw_tab.nrows()
+        for start_row in range(0,nrows,rowchunk):
+            nr = min(rowchunk,nrows-start_row)
+            print('Processing rows: '+str(start_row)+' to '+str(start_row+nr)+' for SPW '+str(spw))
+            src_data = spw_tab.getcol(src,start_row,nr)
+            dest_data = spw_tab.getcol(dest,start_row,nr)
+            if subtract:
+                dest_data = dest_data - src_data
+            else:
+                dest_data += src_data
+            spw_tab.putcol(dest,dest_data,start_row,nr)
+        spw_tab.done()
+    tt.done()
+
+    if field != '': t0.done()
+
+
+def main():
+
+
+    parser = OptionParser(usage = '%prog [options] msname')
+    parser.add_option('--src', dest = 'src', help = 'Name of source column.')
+    parser.add_option('--dest', dest = 'dest', help = 'Name of destination column to which source column will be added.')
+    parser.add_option('--field', dest = 'field', default = '', help = 'Field selection (default = all fields)')
+    parser.add_option('--subtract', dest = 'subtract', default = False, help = 'Enable to subtract source column from destination column.', action = 'store_true')
+    parser.add_option('--rowchunk', dest = 'rowchunk', default = 500000, help = 'Number of chunks to process at once (default = 500000)')
+    (options,args) = parser.parse_args()
+    src = options.src
+    dest = options.dest
+    field = options.field
+    subtract = options.subtract
+    rowchunk = int(options.rowchunk)
+
+
+    if len(args) != 1:
+        print('Please specify a Measurement Set')
+        sys.exit()
+    else:
+        msname = args[0].rstrip('/')
+
+
+    sumcol(msname,src,dest,field,subtract,rowchunk)
+
+
+
+if __name__ == '__main__':
+
+    main()
+===== ./Cir_X1_specific/frame_luminosity_cirX1_loop.py =====
+import sys
+sys.path.append("/Users/savard/PLUTO/pluto_playtime/plotting_analysis/")  
+sys.path.append("/Users/savard/PLUTO/")
+import pyPLUTO as pypl
+import pyPLUTO.pload as pp
+from pyplutplot import *
+wdir = '/pluto_playtime/data_storage/' #set up working directory where data is stored
+import matplotlib.pyplot as plt
+import scipy
+from scipy.interpolate import griddata
+from pluto_luminosity_conversion import *
+import multiprocessing as mp
+from numba import jit
+import numba as nb
+
+def tstep_to_days(t,dbl_step):
+    """converts simulation steps into days.
+    assumes a fixed simulation time unit writing a step every multiple of dbl_step
+    """
+    T_SIM_YEARS = 3.173e-02
+    d = t*T_SIM_YEARS*365*dbl_step
+    return d
+
+def days_to_tstep(days, dbl_step):
+    T_SIM_YEARS = 3.173e-02
+    t = days/(T_SIM_YEARS*365*dbl_step)
+    return t
+
+def gamma_to_beta(gamma):
+    beta = (1.-(gamma**-2))**0.5
+    return beta
+
+def beta_to_gamma(beta):
+    gamma = 1./((1.-beta**2)**0.5)
+    return gamma
+
+def theta_from_beta(beta):
+    theta = np.arccos(0.4/beta)*180/np.pi
+    return theta
+
+@jit(nopython=True)
+def cyl_to_cart(r,z,theta):
+    x = r*np.cos(theta)
+    y = r*np.sin(theta)
+    z = z
+    return x, y, z
+
+@jit(nopython=True)
+def angle_to_boost(viewing_angle,beta):
+    gamma = (1-(beta**2))**(-0.5)
+    #change minus sign for approaching (-) or receding (+) jet
+    delta = (gamma**(-1))*(1.0-beta*np.cos(viewing_angle))**(-1)
+    return delta
+
+@jit(nopython=True)
+def doppler_boost_lum(beta,viewing_angle,alpha,lum):
+    delta = angle_to_boost(viewing_angle,beta)
+    boosted_lum = lum*(delta**(2-alpha))
+    return boosted_lum
+
+@jit(nopython=True)
+def los_angle(theta,viewing_angle,vx1,vx2,beta):
+    denom = (vx1*np.sin(theta)*np.cos(-viewing_angle))-(vx2*np.sin(-viewing_angle))
+    phi = np.arccos(denom/beta)
+    return phi
+
+@jit(nopython=True)
+def ordered_cylindrical_grid(Dvx1,Dvx2,z,r,values,thetas,viewing_angle,alpha):
+    # creating long 2D arrays which correspond to each point in the frame -> ordered by constant z 
+    theta_len = thetas.size
+    height = z.size
+    r_len = r.size
+    width = r_len*theta_len
+    
+
+    rr = np.zeros((height,width))
+    zz = np.zeros((height,width))
+    tt = np.zeros((height,width))
+    ll = np.zeros((height,width))
+    beta_abs = np.sqrt(Dvx2**2 + Dvx1**2)
+    for i in range(height):
+        for j in range(r_len):
+            #constant r iteration with all theta
+            arr_z = np.repeat(z[i],theta_len)
+            arr_r = np.repeat(r[j],theta_len)
+            #doppler boost the emissivity with rotation of 30 deg and theta dependence
+            phi_dopps = los_angle(thetas,viewing_angle,Dvx1[j][i],Dvx2[j][i],beta_abs[j][i])
+            boosted_ems = doppler_boost_lum(beta_abs[j][i],phi_dopps,alpha,values[j][i])
+            start_index = j*theta_len
+            ll[i][start_index:start_index+theta_len] = boosted_ems
+            rr[i][start_index:start_index+theta_len] = arr_r
+            zz[i][start_index:start_index+theta_len] = arr_z
+            tt[i][start_index:start_index+theta_len] = thetas
+    
+    return rr,zz,tt,ll
+
+@jit(nopython=True)
+def ordered_cylindrical_grid_onlyvals(Dvx1,Dvx2,z,r,values,thetas,viewing_angle,alpha):
+    # creating long 2D arrays which correspond to each point in the frame -> ordered by constant z 
+    theta_len = thetas.size
+    height = z.size
+    r_len = r.size
+    width = r_len*theta_len
+    
+    ll = np.zeros((height,width))
+    beta_abs = np.sqrt(Dvx2**2 + Dvx1**2)
+    for i in range(height):
+        for j in range(r_len):
+            #doppler boost the emissivity with rotation of 30 deg and theta dependence
+            phi_dopps = los_angle(thetas,viewing_angle,Dvx1[j][i],Dvx2[j][i],beta_abs[j][i])
+            boosted_ems = doppler_boost_lum(beta_abs[j][i],phi_dopps,alpha,values[j][i])
+            start_index = j*theta_len
+            ll[i][start_index:start_index+theta_len] = boosted_ems
+    
+    return ll
+
+@jit(nopython=True)
+def rotate_cartesian(x,y,z,theta):
+    yp = (y*np.cos(theta))-(np.array(z)*np.sin(theta))
+    zp = (y*np.sin(theta))+(np.array(z)*np.cos(theta))
+    xp = x
+    return xp, yp, zp
+
+@jit(nopython=True)
+def dontrotate(x,y,z):
+    return x,y,z
+
+@jit(nopython=True)
+def new_cartesian_grid(x_new,y_new, z_new,r):
+    #### make sure to pass numpy arrays, not lists!
+
+    #create new grid 2D to interpolate on
+    cell_size = r[1]-r[0] #used to be grid size
+    xlen = int((np.max(x_new)-np.min(x_new))/cell_size)
+    ylen = int((np.max(y_new)-np.min(y_new))/cell_size)
+    zlen = int((np.max(z_new)-np.min(z_new))/cell_size)
+    #the spacing of the goal grid is the same as the original 2D cylindrical grid
+    x_ar = np.linspace(np.min(x_new),np.max(x_new),xlen)
+    y_ar = np.linspace(np.min(y_new),np.max(y_new),ylen)
+    z_ar = np.linspace(np.min(z_new),np.max(z_new),zlen)
+    return x_ar, y_ar, z_ar
+
+def m_to_arcseconds(m,distance_in_pc):
+    acs = (m*100)/(1.496*10**(13))*(1/distance_in_pc)
+    return acs
+
+def loader_bar(i,range,modulo): #just for output purposes
+    perc = int((i/range)*100)
+    prev_perc = int(((i-1)/range)*100)
+    if i==0:
+        s = str(0)+"%"
+        print(s,end="...",flush=True)
+    if perc%modulo==0 and perc!=prev_perc:
+        s = str(perc)+"%"
+        print(s,end="...",flush=True)
+        prev=perc+modulo
+
+def interpolate_onerow_flat(args):
+    x_flat,y_flat,ll_flat,grid_x,grid_y = args
+    points = (x_flat,y_flat)
+    interp_grid = (grid_x,grid_y)
+    interp = griddata(points,ll_flat,interp_grid,method='linear')
+    return interp
+
+def interpolate_flat_MPI(x_irr,y_irr,zlen,ll,grid_x,grid_y,num_pools,fig_dir,sim_name,image_timestep):
+    print('starting pool interpolation')
+    #need to make grid_x and grid_y accessible everywhere somehow 
+    with mp.Pool(num_pools) as pool:
+        iter_num = range(zlen)
+        args = [(x_irr[i].flatten(),y_irr[i].flatten(),ll[i].flatten(),grid_x,grid_y) for i in iter_num]
+        result = pool.map(interpolate_onerow_flat,args)
+    print('finished pool interpolation')
+    interp_clean = np.nan_to_num(result)
+    save_list(np.asarray(interp_clean),fig_dir,'interpolated_frame_'+sim_name+'_'+str(image_timestep)+'_flat')
+    del result
+    return interp_clean
+
+def integrate_flat(cell_size,interp_clean,fig_dir,sim_name,image_timestep):
+    integrated_frames = []
+    pixel_vol = (cell_size)**3 #multiply by the volume of each pixel when integrating
+    for frame in interp_clean:
+        integrated_frame = np.sum(frame,axis=0)*pixel_vol*2
+        integrated_frames.append(integrated_frame)
+    save_list(np.asarray(integrated_frames),fig_dir,'integrated_frame_'+sim_name+'_'+str(image_timestep)+'_flat')
+    return integrated_frames
+
+def interpolate_total(x_ar,y_ar,z_ar,ll,grid_x,grid_y,grid_size,system_name,results_folder,image_timestep,save='save'):
+    if save=='save':
+        grid_x, grid_y = np.meshgrid(x_ar,y_ar,z_ar,indexing='ij')
+        interps = []
+        iter_num = len(z_ar)
+        for i in range(iter_num):
+            loader_bar(i,iter_num,5)
+            x_arr = x_ar[i].flatten() #160x130 points -> 20800
+            y_arr = y_ar[i].flatten()
+            points = (x_arr,y_arr)
+            values = ll[i].flatten()
+            interp_grid = (grid_x,grid_y)
+            interp = griddata(points,values,interp_grid,method='linear')
+            interps.append(interp)
+        interp_clean = np.nan_to_num(interps) #remove all nans and turn them into zeros for the sake of integration 
+        save_list(np.asarray(interp_clean),results_folder,'interpolated_frame_'+system_name+'_'+str(image_timestep))
+        len(interp_clean)
+        integrated_frames = []
+        pixel_vol = (grid_size)**3 #multiply by the volume of each pixel when integrating
+        for frame in interp_clean:
+            integrated_frame = np.sum(frame,axis=0)*pixel_vol*2
+            integrated_frames.append(integrated_frame)
+        save_list(np.asarray(integrated_frames),results_folder,'integrated_frame_'+system_name+'_'+str(image_timestep))
+    elif save=='load':
+        print("loading")
+        interp_clean = load_list(results_folder,'interpolated_frame_'+system_name+'_'+str(image_timestep))
+        integrated_frames = load_list(results_folder,'integrated_frame_'+system_name+'_'+str(image_timestep))
+    return interp_clean, integrated_frames
+
+def interpolate_flat(x_ar,y_ar,x_new,y_new,z_new,ll,cell_size,fig_dir,sim_name,image_timestep,save):
+    if save=='save':
+        grid_x, grid_y = np.meshgrid(x_ar,y_ar)
+        interps = []
+        iter_num = len(z_new)
+        for i in range(iter_num):
+            loader_bar(i,iter_num,5)
+            x_arr = x_new[i].flatten() #160x130 points -> 20800
+            y_arr = y_new[i].flatten()
+            points = (x_arr,y_arr)
+            values = np.array(ll)[i].flatten()
+            interp_grid = (grid_x,grid_y)
+            interp = griddata(points,values,interp_grid,method='linear')
+            interps.append(interp)
+        
+        interp_clean = np.nan_to_num(interps) #remove all nans and turn them into zeros for the sake of integration 
+        save_list(np.asarray(interp_clean),fig_dir,'interpolated_frame_'+sim_name+'_'+str(image_timestep)+'_flat')
+        
+        integrated_frames = []
+        pixel_vol = (cell_size)**3 #multiply by the volume of each pixel when integrating
+        for frame in interp_clean:
+            integrated_frame = np.sum(frame,axis=0)*pixel_vol*2
+            integrated_frames.append(integrated_frame)
+        save_list(np.asarray(integrated_frames),fig_dir,'integrated_frame_'+sim_name+'_'+str(image_timestep)+'_flat')
+    elif save=='load':
+        print("loading")
+        interp_clean = load_list(fig_dir,'interpolated_frame_'+sim_name+'_'+str(image_timestep)+'_flat')
+        integrated_frames = load_list(fig_dir,'integrated_frame_'+sim_name+'_'+str(image_timestep)+'_flat')
+    return interp_clean, integrated_frame
+
+def plot_basic(a1,a2,data,figname,cbartitle,title,results_folder):
+    fig = plt.figure(figsize=[8,8])
+    plt.pcolormesh(a1,a2,data.T,shading='auto')
+    plt.pcolormesh(-a1,a2,data.T,shading='auto')
+    ax = plt.gca()
+    ax.set_aspect('equal', adjustable='box')
+    cbar = plt.colorbar()
+    plt.title(title)
+    cbar.set_label(cbartitle)
+    save_fig(results_folder,figname,overwrite=True)
+    plt.close()
+    del fig, ax, cbar
+
+def main():
+
+    ###########   input arguments    ###############
+
+    """
+    You can input arguments on the command line OR just default to the ones listed here
+    Dont use this interactive feature on the supercomputer (comment it out)
+    """
+
+    args = sys.argv[1:]
+
+
+    default_sim_name = 'C5' #where the PLUTO output data is stored (name of the folder)
+    default_image_start = 118
+    default_image_end = 560 
+    sampling = 4
+    num_pools = 5
+
+    if len(args)==3:
+        sim_name = args[0] #'ri0.001_rb0.02_k0.1_lz25_6hhres_newprs2'
+        image_start = args[1]
+        image_end = args[2]
+    else:
+        default = input('need 2 args: use default arguments? '+'\n'+'default arguments are: '+'\n'+default_sim_name+'\n'+'timesteps: '+str(default_image_start)+'-'+str(default_image_end)+'\n'+'(y/n)')
+        if default=='y':
+            sim_name = default_sim_name
+            image_start = default_image_start
+            image_end = default_image_end
+        else:
+            return
+
+
+    
+    ###########   definitions    ###############
+
+    kappa = 0.1 #fraction of pressure contribution to luminosity
+    #distance_in_pc = 9400
+    alpha= -0.507 #spectral index
+    #P_sim = 1.503*10**(-4) #kg m^-1 s^2  (PLUTO units)
+    #L_sim = 1*10**13 #m (PLUTO units)
+    #nu_observe = (1.28* 1e9) #1.28 GHz (Bright2020) observing frequency
+    #eta=0.75 #equipartition
+    exponent = (3-alpha)/2
+    #p = (4*exponent) - 5 #2.01
+    dtype = 'flt' #what data type PLUTO outputs
+    NTHETA = 50
+
+    ###########    setups    ###############
+    data_dir = '/pluto_playtime/data_storage/'+sim_name+'/' #set up working directory where data is stored
+    fig_dir = '/Users/Shared/Data/savard/PLUTO/pluto_playtime/analysis_cirX1/'+sim_name+'/'
+    angle_degrees = 30.0
+    viewing_angle = (2*np.pi)/360 *angle_degrees
+
+    ###################  
+    # make grid to interpolate onto 
+    # and other common variables
+    ###################
+
+    ##first just load the first step to build the grid
+    D = load_data_obj(data_dir,image_start,data_type=dtype)
+    values = ((kappa*D.prs)**exponent).T[::sampling,::sampling].T
+    
+
+    #same for all 
+    r = D.x1[::sampling]
+    z = D.x2[::sampling]
+    thetas = np.linspace(0,np.pi/2,NTHETA) #create some theta to wrap it around pi/2, arbitrary number of steps for now
+    cell_size = r[1]-r[0]
+
+    #ll will be different for different timesteps but the rest is the same
+    rr, zz, tt, ll = ordered_cylindrical_grid(D.vx1,D.vx2,z,r,values,thetas,viewing_angle,alpha)
+    x_cart_irr, y_cart_irr, z_cart_irr = cyl_to_cart(rr, zz, tt)
+
+    #create new grid to interpolate on
+    x_ar, y_ar, z_ar = new_cartesian_grid(x_cart_irr,y_cart_irr,z_cart_irr,r)
+    grid_x, grid_y = np.meshgrid(x_ar,y_ar)
+
+    #######
+    # now loop through timesteps and interpolate 
+    #######
+
+    for time in range(image_start,image_end):
+        D = load_data_obj(data_dir,time,data_type=dtype)
+        values = ((kappa*D.prs)**exponent).T[::sampling,::sampling].T
+        ll = ordered_cylindrical_grid_onlyvals(D.vx1,D.vx2,z,r,values,thetas,viewing_angle,alpha)
+        interp_clean = interpolate_flat_MPI(x_cart_irr,y_cart_irr,len(z_cart_irr),ll,grid_x,grid_y,num_pools,fig_dir,sim_name,time)
+        integrated_frames = integrate_flat(cell_size,interp_clean,fig_dir,sim_name,time)
+        del interp_clean
+        del integrated_frames, ll, values, D
+
+
+if __name__ == '__main__':
+    main()
+===== ./Cir_X1_specific/frame_luminosity_cirX1.py =====
+import sys
+sys.path.append("/Users/savard/PLUTO/pluto_playtime/plotting_analysis/")  
+sys.path.append("/Users/savard/PLUTO/")
+import pyPLUTO as pypl
+import pyPLUTO.pload as pp
+from pyplutplot import *
+wdir = '/pluto_playtime/data_storage/' #set up working directory where data is stored
+import matplotlib.pyplot as plt
+import scipy
+from scipy.interpolate import griddata
+from pluto_luminosity_conversion import *
+import multiprocessing as mp
+from numba import jit
+import numba as nb
+
+def tstep_to_days(t,dbl_step):
+    """converts simulation steps into days.
+    assumes a fixed simulation time unit writing a step every multiple of dbl_step
+    """
+    T_SIM_YEARS = 3.173e-02
+    d = t*T_SIM_YEARS*365*dbl_step
+    return d
+
+def days_to_tstep(days, dbl_step):
+    T_SIM_YEARS = 3.173e-02
+    t = days/(T_SIM_YEARS*365*dbl_step)
+    return t
+
+def gamma_to_beta(gamma):
+    beta = (1.-(gamma**-2))**0.5
+    return beta
+
+def beta_to_gamma(beta):
+    gamma = 1./((1.-beta**2)**0.5)
+    return gamma
+
+def theta_from_beta(beta):
+    theta = np.arccos(0.4/beta)*180/np.pi
+    return theta
+
+@jit
+def cyl_to_cart(r,z,theta):
+    x = r*np.cos(theta)
+    y = r*np.sin(theta)
+    z = z
+    return x, y, z
+
+@jit
+def angle_to_boost(viewing_angle,beta):
+    gamma = (1-(beta**2))**(-0.5)
+    #change minus sign for approaching (-) or receding (+) jet
+    delta = (gamma**(-1))*(1.0-beta*np.cos(viewing_angle))**(-1)
+    return delta
+
+@jit
+def doppler_boost_lum(beta,viewing_angle,alpha,lum):
+    delta = angle_to_boost(viewing_angle,beta)
+    boosted_lum = lum*(delta**(2-alpha))
+    return boosted_lum
+
+@jit
+def los_angle(theta,viewing_angle,vx1,vx2,beta):
+    denom = (vx1*np.sin(theta)*np.cos(-viewing_angle))-(vx2*np.sin(-viewing_angle))
+    phi = np.arccos(denom/beta)
+    return phi
+
+@jit
+def ordered_cylindrical_grid(Dvx1,Dvx2,z,r,values,thetas,viewing_angle,alpha):
+    # creating long 2D arrays which correspond to each point in the frame -> ordered by constant z 
+    theta_len = thetas.size
+    height = z.size
+    r_len = r.size
+    width = r_len*theta_len
+    
+
+    rr = np.zeros((height,width))
+    zz = np.zeros((height,width))
+    tt = np.zeros((height,width))
+    ll = np.zeros((height,width))
+    beta_abs = np.sqrt(Dvx2**2 + Dvx1**2)
+    for i in range(height):
+        for j in range(r_len):
+            #constant r iteration with all theta
+            arr_z = np.repeat(z[i],theta_len)
+            arr_r = np.repeat(r[j],theta_len)
+            #doppler boost the emissivity with rotation of 30 deg and theta dependence
+            phi_dopps = los_angle(thetas,viewing_angle,Dvx1[j][i],Dvx2[j][i],beta_abs[j][i])
+            boosted_ems = doppler_boost_lum(beta_abs[j][i],phi_dopps,alpha,values[j][i])
+            start_index = j*theta_len
+            ll[i][start_index:start_index+theta_len] = boosted_ems
+            rr[i][start_index:start_index+theta_len] = arr_r
+            zz[i][start_index:start_index+theta_len] = arr_z
+            tt[i][start_index:start_index+theta_len] = thetas
+    
+    return rr,zz,tt,ll
+
+@jit
+def rotate_cartesian(x,y,z,theta):
+    yp = (y*np.cos(theta))-(np.array(z)*np.sin(theta))
+    zp = (y*np.sin(theta))+(np.array(z)*np.cos(theta))
+    xp = x
+    return xp, yp, zp
+
+def dontrotate(x,y,z):
+    return x,y,z
+
+@jit
+def new_cartesian_grid(x_new,y_new, z_new,r):
+    #### make sure to pass numpy arrays, not lists!
+
+    #create new grid 2D to interpolate on
+    cell_size = r[1]-r[0] #used to be grid size
+    xlen = int((np.max(x_new)-np.min(x_new))/cell_size)
+    ylen = int((np.max(y_new)-np.min(y_new))/cell_size)
+    zlen = int((np.max(z_new)-np.min(z_new))/cell_size)
+    #the spacing of the goal grid is the same as the original 2D cylindrical grid
+    x_ar = np.linspace(np.min(x_new),np.max(x_new),xlen)
+    y_ar = np.linspace(np.min(y_new),np.max(y_new),ylen)
+    z_ar = np.linspace(np.min(z_new),np.max(z_new),zlen)
+    return x_ar, y_ar, z_ar
+
+def m_to_arcseconds(m,distance_in_pc):
+    acs = (m*100)/(1.496*10**(13))*(1/distance_in_pc)
+    return acs
+
+def loader_bar(i,range,modulo): #just for output purposes
+    perc = int((i/range)*100)
+    prev_perc = int(((i-1)/range)*100)
+    if i==0:
+        s = str(0)+"%"
+        print(s,end="...",flush=True)
+    if perc%modulo==0 and perc!=prev_perc:
+        s = str(perc)+"%"
+        print(s,end="...",flush=True)
+        prev=perc+modulo
+
+def interpolate_onerow_flat(args):
+    x_flat,y_flat,ll_flat,grid_x,grid_y = args
+    points = (x_flat,y_flat)
+    interp_grid = (grid_x,grid_y)
+    interp = griddata(points,ll_flat,interp_grid,method='linear')
+    return interp
+
+def interpolate_flat_MPI(x_irr,y_irr,z_irr,ll,grid_x,grid_y,num_pools,fig_dir,sim_name,image_timestep):
+    items = range(len(z_irr))
+    array = z_irr
+    #need to make grid_x and grid_y accessible everywhere somehow 
+    with mp.Pool(num_pools) as pool:
+        iter_num = range(len(z_irr))
+        args = [(x_irr[i].flatten(),y_irr[i].flatten(),ll[i].flatten(),grid_x,grid_y) for i in iter_num]
+        result = pool.map(interpolate_onerow_flat,args)
+    interp_clean = np.nan_to_num(result)
+    save_list(np.asarray(interp_clean),fig_dir,'interpolated_frame_'+sim_name+'_'+str(image_timestep)+'_flat')
+    return interp_clean
+
+def integrate_flat(cell_size,interp_clean,fig_dir,sim_name,image_timestep):
+    integrated_frames = []
+    pixel_vol = (cell_size)**3 #multiply by the volume of each pixel when integrating
+    for frame in interp_clean:
+        integrated_frame = np.sum(frame,axis=0)*pixel_vol*2
+        integrated_frames.append(integrated_frame)
+    save_list(np.asarray(integrated_frames),fig_dir,'integrated_frame_'+sim_name+'_'+str(image_timestep)+'_flat')
+
+
+def interpolate_total(x_ar,y_ar,z_ar,ll,grid_x,grid_y,grid_size,system_name,results_folder,image_timestep,save='save'):
+    if save=='save':
+        grid_x, grid_y = np.meshgrid(x_ar,y_ar,z_ar,indexing='ij')
+        interps = []
+        iter_num = len(z_ar)
+        for i in range(iter_num):
+            loader_bar(i,iter_num,5)
+            x_arr = x_ar[i].flatten() #160x130 points -> 20800
+            y_arr = y_ar[i].flatten()
+            points = (x_arr,y_arr)
+            values = ll[i].flatten()
+            interp_grid = (grid_x,grid_y)
+            interp = griddata(points,values,interp_grid,method='linear')
+            interps.append(interp)
+        interp_clean = np.nan_to_num(interps) #remove all nans and turn them into zeros for the sake of integration 
+        save_list(np.asarray(interp_clean),results_folder,'interpolated_frame_'+system_name+'_'+str(image_timestep))
+        len(interp_clean)
+        integrated_frames = []
+        pixel_vol = (grid_size)**3 #multiply by the volume of each pixel when integrating
+        for frame in interp_clean:
+            integrated_frame = np.sum(frame,axis=0)*pixel_vol*2
+            integrated_frames.append(integrated_frame)
+        save_list(np.asarray(integrated_frames),results_folder,'integrated_frame_'+system_name+'_'+str(image_timestep))
+    elif save=='load':
+        print("loading")
+        interp_clean = load_list(results_folder,'interpolated_frame_'+system_name+'_'+str(image_timestep))
+        integrated_frames = load_list(results_folder,'integrated_frame_'+system_name+'_'+str(image_timestep))
+    return interp_clean, integrated_frames
+
+def interpolate_flat(x_ar,y_ar,x_new,y_new,z_new,ll,cell_size,fig_dir,sim_name,image_timestep,save):
+    if save=='save':
+        grid_x, grid_y = np.meshgrid(x_ar,y_ar)
+        interps = []
+        iter_num = len(z_new)
+        for i in range(iter_num):
+            loader_bar(i,iter_num,5)
+            x_arr = x_new[i].flatten() #160x130 points -> 20800
+            y_arr = y_new[i].flatten()
+            points = (x_arr,y_arr)
+            values = np.array(ll)[i].flatten()
+            interp_grid = (grid_x,grid_y)
+            interp = griddata(points,values,interp_grid,method='linear')
+            interps.append(interp)
+        
+        interp_clean = np.nan_to_num(interps) #remove all nans and turn them into zeros for the sake of integration 
+        save_list(np.asarray(interp_clean),fig_dir,'interpolated_frame_'+sim_name+'_'+str(image_timestep)+'_flat')
+        
+        integrated_frames = []
+        pixel_vol = (cell_size)**3 #multiply by the volume of each pixel when integrating
+        for frame in interp_clean:
+            integrated_frame = np.sum(frame,axis=0)*pixel_vol*2
+            integrated_frames.append(integrated_frame)
+        save_list(np.asarray(integrated_frames),fig_dir,'integrated_frame_'+sim_name+'_'+str(image_timestep)+'_flat')
+    elif save=='load':
+        print("loading")
+        interp_clean = load_list(fig_dir,'interpolated_frame_'+sim_name+'_'+str(image_timestep)+'_flat')
+        integrated_frames = load_list(fig_dir,'integrated_frame_'+sim_name+'_'+str(image_timestep)+'_flat')
+    return interp_clean, integrated_frame
+
+def plot_basic(a1,a2,data,figname,cbartitle,title,results_folder):
+    fig = plt.figure(figsize=[8,8])
+    plt.pcolormesh(a1,a2,data.T,shading='auto')
+    plt.pcolormesh(-a1,a2,data.T,shading='auto')
+    ax = plt.gca()
+    ax.set_aspect('equal', adjustable='box')
+    cbar = plt.colorbar()
+    plt.title(title)
+    cbar.set_label(cbartitle)
+    save_fig(results_folder,figname,overwrite=True)
+    plt.close()
+    del fig, ax, cbar
+
+def main():
+
+    ###########   input arguments    ###############
+
+    """
+    You can input arguments on the command line OR just default to the ones listed here
+    """
+
+    args = sys.argv[1:]
+
+
+    default_sim_name = 'C5' #where the PLUTO output data is stored (name of the folder)
+    default_image_timestep = 100 #which timestep
+    sampling = 4
+
+    if len(args)==2:
+        sim_name = args[0] #'ri0.001_rb0.02_k0.1_lz25_6hhres_newprs2'
+        image_timestep = args[1]
+    else:
+        default = input('need 2 args: use default arguments? '+'\n'+'default arguments are: '+'\n'+default_sim_name+'\n'+'timestep '+str(default_image_timestep)+'\n'+'(y/n)')
+        if default=='y':
+            sim_name = default_sim_name
+            image_timestep = default_image_timestep
+        else:
+            return
+
+    save_or_load = input('save or load interpolation?')
+    if save_or_load!= 'save' and save_or_load!='load':
+        print('bad input: save or load!')
+        return
+    
+    ###########   definitions    ###############
+
+    kappa = 0.1 #fraction of pressure contribution to luminosity
+    distance_in_pc = 9400
+    alpha= -0.507 #spectral index
+    P_sim = 1.503*10**(-4) #kg m^-1 s^2  (PLUTO units)
+    L_sim = 1*10**13 #m (PLUTO units)
+    nu_observe = (1.28* 1e9) #1.28 GHz (Bright2020) observing frequency
+    eta=0.75 #equipartition
+    exponent = (3-alpha)/2
+    p = (4*exponent) - 5 #2.01
+    dtype = 'flt' #what data type PLUTO outputs
+
+    ###########    setups    ###############
+    data_dir = '/pluto_playtime/data_storage/'+sim_name+'/' #set up working directory where data is stored
+    fig_dir = '/Users/Shared/Data/savard/PLUTO/pluto_playtime/analysis_cirX1/'+sim_name+'/'
+    angle_degrees = 30.0
+    viewing_angle = (2*np.pi)/360 *angle_degrees
+
+    ###################  plot original 2D  #######################################
+
+
+    D = load_data_obj(data_dir,image_timestep,data_type=dtype)
+    
+    rotate = False
+
+    em = ((kappa*D.prs)**exponent).T[::sampling,::sampling].T
+    ax1 = D.x1[::sampling]
+    ax2 = D.x2[::sampling]
+
+    crop_name = 'simimage_original_'+sim_name+'_'+str(image_timestep)
+    crop_cbartitle='pseudo-emissivity sim units'
+    plot_basic(ax1,ax2,em,crop_name,crop_cbartitle,sim_name,fig_dir) #save the cropped image original
+
+
+
+    ############      make a cylindrical grid and boost        #########################
+
+    r = ax1 #r, 160 vals
+    z = ax2 #z, 1600 vals
+    values = em
+
+    NTHETA = 50
+
+    thetas = np.linspace(0,np.pi/2,NTHETA) #create some theta to wrap it around pi/2, arbitrary number of steps for now
+    theta_len = len(thetas)
+    z_len = len(z)
+    r_len = len(r)
+    cell_size = r[1]-r[0] #used to be grid size
+    rr, zz, tt, ll = ordered_cylindrical_grid(D,z,r,values,thetas,viewing_angle,alpha)
+
+    #convert to cartesian:
+    x_cart, y_cart, z_cart = cyl_to_cart(rr, zz, tt)
+
+    # rotate the cartsian grid: 
+    if rotate:
+        x_new, y_new , z_new = rotate_cartesian(x_cart,y_cart,z_cart,-viewing_angle)
+    else:
+        x_new, y_new , z_new = dontrotate(x_cart , y_cart, z_cart)
+
+    #create new grid to interpolate on
+    #  (the spacing of the goal grid is the same as the original 2D cylindrical grid)
+    x_ar, y_ar, z_ar = new_cartesian_grid(x_new,y_new,z_new,r)
+    
+    #turn this into meshgrid:
+    print('making meshgrid')
+    if rotate:
+        grid_x, grid_y, grid_z = np.meshgrid(x_ar,y_ar,z_ar)
+    
+
+    ############      interpolate        ###########################################
+
+    print('beginning interpolation')
+    interp_clean, integrated_frames = interpolate_flat(x_ar,y_ar,x_new,y_new,z_new,ll,cell_size,fig_dir,sim_name,image_timestep,save=save_or_load)
+
+main()
+===== ./configs/default_MSbuilder.yaml =====
+telescopename: SKA-Mid
+new_ms_name: my_ska-mid_sim_1.ms
+source_ra: '12h00m00.0s'
+source_dec: '-40d00m0.0s'
+f0: '856MHz' # MHz lowest band frequency
+df: '107MHz' # MHz channel width
+nchan: 8 # number of channels
+t_int: '120s' # in seconds: Note that this is the correlator dump time, not total track length
+start_ha: '-0.2h' # Start and end times are relative to transit
+end_ha: '+0.2h' #hourangle
+===== ./configs/default_prediction.yaml =====
+add_noise: true
+container_name: stimela/wsclean:1.6.3
+container_type: Docker
+fitsfile_name: fits_robfender_1_1.28GHz.fits
+image_timestep: 1
+ms_name: my_ska-mid_sim_1.ms
+newDEC: 7.1835107
+newRA: -84.9099229
+rephase_real: false
+reposition_model: false
+scale: 0.003764
+telescopename: eMERLIN
+xpix: 2608
+ypix: 3906
+
+===== ./configs/default_simulation.yaml =====
+L_sim: 10000000000000.0
+P_sim: 0.0001503
+alpha: -0.507
+distance_in_pc: 2960
+dtype: flt
+eta: 0.75
+gamma: 2.0
+image_timestep: 1
+kappa: 0.1
+load_interp: false
+nu_observe: 1280000000.0
+system_name: robfender
+theta: 62.491498934611414
+xresolution: 0.16666666666666666
+yresolution: 0.16666666666666666
+image_filename: Rob_Fender.jpg
+
+===== ./telescope_info/e-MERLIN_SEFD.yaml =====
+sefd:
+  Cm: 249.84804490523422
+  Da: 642.9481818734408
+  De: 500.00772195081555
+  Kn: 642.9481818739501
+  Mk2: 428.50465900374047
+  Pi: 642.9481818735591
+===== ./tests/__init__.py =====
+
+===== ./tests/test_fitsconversion.py =====
+import pytest
+import numpy as np
+import numpy.testing as npt
+
+
+@pytest.mark.parametrize(
+    "test, expected",
+    [
+        (),
+        ()
+    ])
+def test_deres_array(test, expected):
+    """
+    Test the deres_array function with different inputs.
+    """
+    from blobrender.fits_conversion import deres_array_check
+    # Call the function with the test input
+    image, output = deres_array_check(test)
+
+    # Check if the result matches the expected output
+    npt.assert_array_equal(image, expected)
+    # Check if the result matches the expected output
+    
+
+===== ./tests/test_resizefits.py =====
+
+===== ./tests/test_simluminosity.py =====
+
+===== ./tests/test_tools.py =====
+

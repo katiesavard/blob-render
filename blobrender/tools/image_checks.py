@@ -1,6 +1,15 @@
 from scipy.spatial.distance import pdist
-from casatools import table
 import numpy as np
+
+def _casa_table():
+    try:
+        from casatools import table
+    except ImportError as exc:
+        raise ImportError(
+            "Reading Measurement Set metadata requires casatools. "
+            "Install the CASA extras or run this MS-aware check in a CASA-capable environment."
+        ) from exc
+    return table
 
 def baseline_range(positions):
     """
@@ -16,7 +25,7 @@ def baseline_range(positions):
     return np.min(dists), np.max(dists)
 
 def baseline_range_from_ms(ms_path):
-    tb = table()
+    tb = _casa_table()()
     tb.open(ms_path + "/ANTENNA")
     positions = tb.getcol("POSITION").T  # shape: (N_antennas, 3)
     tb.close()
@@ -66,12 +75,10 @@ def get_min_max_frequency(ms_path):
     """
     Extract the minimum and maximum frequency (in Hz) from the SPECTRAL_WINDOW table of a Measurement Set.
     """
-    from casatools import table
-    tb = table()
+    tb = _casa_table()()
     tb.open(ms_path + "/SPECTRAL_WINDOW")
     chanfreq = tb.getcol("CHAN_FREQ")  # shape: (nchan, nspw) or (nchan,)
     tb.close()
     freqs = np.array(chanfreq).flatten()
     return freqs.min(), freqs.max()
-
 

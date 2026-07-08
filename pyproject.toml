@@ -14,7 +14,6 @@ authors = [
 dependencies = [
     "numpy",
     "pyyaml",
-    "casatools",
     "matplotlib",
     "astropy",
     "scipy",
@@ -22,6 +21,11 @@ dependencies = [
     "pyrap",
     "pillow",
     "numba"
+]
+
+[project.optional-dependencies]
+casa = [
+    "casatools",
 ]
 
 [project.urls]

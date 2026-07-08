@@ -6,7 +6,12 @@ from astropy.io import fits
 import numpy as np
 from math import ceil
 import sys
-from blobrender.tools.image_checks import check_image_pixelsize
+from blobrender.tools.image_checks import (
+    baseline_range_from_ms,
+    check_image_fov,
+    check_image_pixelsize,
+    get_min_max_frequency,
+)
 
 def pad_fits(input_fits, output_fits, target_x, target_y):
     """
@@ -96,13 +101,13 @@ def main():
 
 
 
-    min_frequency, max_frequency = tools.get_min_max_frequency(split_ms_name)
-    min_b, max_b = tools.baseline_range_from_ms(split_ms_name)
+    min_frequency, max_frequency = get_min_max_frequency(split_ms_name)
+    min_b, max_b = baseline_range_from_ms(split_ms_name)
 
     good_pix, max_pix = check_image_pixelsize(scale, max_b, max_frequency)
     print(f"Pixel size {scale} arcsec is {'OK' if good_pix else 'TOO LARGE'} for max baseline {max_b:.2f} m at frequency {max_frequency/1e6:.3f} MHz. Max allowed pixel size is {max_pix:.2f} arcsec.")
 
-    good_fov, min_fov = tools.check_image_fov(fov, min_b, min_frequency)
+    good_fov, min_fov = check_image_fov(fov, min_b, min_frequency)
     print(good_fov, min_fov)
     new_npix = int(ceil(min_fov / scale)*1.1) # 10% extra padding for those wanting to use uniform weighting when imaging
     if new_npix*2 > 100000:

@@ -2,8 +2,6 @@ import numpy as np
 import scipy
 from scipy.interpolate import griddata
 import os 
-import pyPLUTO as pypl
-import pyPLUTO.pload as pp
 from . import basics as b
 
 def rgb2gray(rgb):
@@ -28,6 +26,9 @@ def load_data_obj(ddir, num=-1, data_type='dbl'):
         pyPLUTO image object made from Data object 
 
     """
+    import pyPLUTO as pypl
+    import pyPLUTO.pload as pp
+
     data_dir = ddir+'/'
     if num==-1:
         nlinf = pypl.nlast_info(w_dir=data_dir)
@@ -47,6 +48,8 @@ def get_max_step(local_wdir):
     Returns:
         _type_: _description_
     """
+    import pyPLUTO as pypl
+
     plutodir = os.environ['PLUTO_DIR']
     full_wdir = plutodir+local_wdir
     try:
@@ -119,4 +122,3 @@ def m_to_arcseconds(m,distance_in_pc):
 def theta_from_beta(beta):
     theta = np.arccos(0.4/beta)*180/np.pi
     return theta
-
