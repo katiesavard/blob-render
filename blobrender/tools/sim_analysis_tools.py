@@ -1,7 +1,6 @@
 import numpy as np
 import scipy
 from scipy.interpolate import griddata
-import os 
 from . import basics as b
 
 def rgb2gray(rgb):
@@ -38,26 +37,6 @@ def load_data_obj(ddir, num=-1, data_type='dbl'):
         print("data type: "+data_type)
         D = pp.pload(num,w_dir=data_dir,datatype=data_type) # Loading the data into a pload object D.
     return D
-
-def get_max_step(local_wdir):
-    """_summary_
-
-    Args:
-        local_wdir (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    import pyPLUTO as pypl
-
-    plutodir = os.environ['PLUTO_DIR']
-    full_wdir = plutodir+local_wdir
-    try:
-        nlinf = pypl.nlast_info(w_dir=full_wdir,datatype='dbl')
-    except:
-        nlinf = pypl.nlast_info(w_dir=full_wdir,datatype='flt')
-    max_step = nlinf['nlast']
-    return max_step
 
 def gamma_to_beta(gamma):
     beta = (1.-(gamma**-2))**0.5

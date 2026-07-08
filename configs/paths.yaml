@@ -1,0 +1,6 @@
+# Override where blobrender reads/writes simulation data, plots, and
+# prediction-stage results. Leave as null to use the in-repo defaults
+# (sim_data/, plots/, results/ next to the blobrender package).
+sim_dat: null
+plots: null
+results: null

@@ -5,7 +5,7 @@ from . import tools
 import numpy as np
 
 
-from .paths import CONFIGS, CONTAINERS, TEL_INFO
+from .paths import CONFIGS, CONTAINERS, TEL_INFO, RESULTS
 from blobrender.help_strings import HELP_DICT
 from blobrender.tools.image_checks import (
 	baseline_range_from_ms,
@@ -76,23 +76,19 @@ def main():
 	cont = os.path.join(CONTAINERS,container_name)
 	container_type_lower = str(container_type).lower()
 
-	### we are assuming that you will run this script from inside blob-render and so
-	### there is a results folder under you. This may need to be more flexble in the future
-	### but works for now lol
-
 	if container_type_lower == 'singularity':
-		container_setup = f'singularity exec --bind {os.getcwd()} ' + cont + ' '
+		container_setup = f'singularity exec --bind {os.getcwd()},{RESULTS} ' + cont + ' '
 	elif container_type_lower == 'docker':
-		container_setup = f'docker run --rm -v {os.getcwd()}:/home/user -w /home/user ' + container_name + ' '
+		container_setup = f'docker run --rm -v {os.getcwd()}:/home/user -v {RESULTS}:{RESULTS} -w /home/user ' + container_name + ' '
 	elif container_type_lower == 'none':
 		container_setup = ''
 	else:
 		raise ValueError(f"Unknown container type: {container_type}. Use 'singularity', 'docker', or 'none'")
 
 	bash_runfile = 'run_predict.sh'
-	predict_file_name = os.path.join('results','brender_'+telescopename+'_inpmodel_'+timestep) #where you instert the simulation
-	image_file_name = os.path.join('results','brender_'+telescopename+'_modimage_'+timestep) #images from cleaning process
-	imagesum_file_name = os.path.join('results','brender_'+telescopename+'_sumimage_'+timestep)
+	predict_file_name = os.path.join(RESULTS,'brender_'+telescopename+'_inpmodel_'+timestep) #where you instert the simulation
+	image_file_name = os.path.join(RESULTS,'brender_'+telescopename+'_modimage_'+timestep) #images from cleaning process
+	imagesum_file_name = os.path.join(RESULTS,'brender_'+telescopename+'_sumimage_'+timestep)
 
 
 	f = open(bash_runfile,'w')
@@ -134,7 +130,7 @@ def main():
 	if add_noise:
 		f.write('printf "adding noise to model visibilities\n" \n')
 		#load the sefd config file
-		sefd_dict = os.path.join('telescope_info','{}_SEFD.yaml'.format(telescopename))
+		sefd_dict = os.path.join(TEL_INFO,'{}_SEFD.yaml'.format(telescopename))
 		#f.write(container_setup+'python3 blobrender/tools/add_MS_column.py --ms_path '+split_ms_name+' --modelcol MODEL_DATA --newcol NOISY_MODEL2\n')
 		f.write(container_setup+'python3 blobrender/tools/add_noise_pyrap.py --ms_path '+split_ms_name+' --sefd_dict_filename '+sefd_dict+' --delta_nu '+delta_nu+' --t_int '+t_int+' --column MODEL_DATA\n')
 		f.write('printf "noise added to model visibilities\n" \n')

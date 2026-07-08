@@ -1,3 +1,4 @@
+import os
 from astropy.io import fits
 import numpy as np
 from astropy import units as u
@@ -6,6 +7,7 @@ import sys
 import matplotlib.pyplot as plt
 import aplpy
 
+from .paths import SIM_DAT, PLOTS
 from . import tools
 from .fits_conversion import deres_array_check, even_shape_check
 
@@ -87,9 +89,9 @@ def main():
     print_result = True
 
     ######## define filenames
-    data_dir = '/pluto_playtime/data_storage/'+system_name+'/' #set up working directory where data is stored
-    results_folder = '/Users/savard/PLUTO/pluto_playtime/plotting_analysis/sim_results/{}'.format(system_name)
-    eht_results_folder = '/Users/savard/PLUTO/pluto_playtime/plotting_analysis/sim_results/eht_scaled_sims'
+    data_dir = os.path.join(SIM_DAT, system_name) #set up working directory where data is stored
+    results_folder = os.path.join(PLOTS, system_name)
+    eht_results_folder = os.path.join(SIM_DAT, 'eht_scaled_sims')
     ez_filename = 'pixel_lum_'+system_name+'_'+str(image_timestep)+'_'+str(nu_observe/1e9)+'GHz'
 
     ####### load in the image
@@ -98,11 +100,13 @@ def main():
 
     #### ----- adjust luminosity array ---- ######
 
+    output_string = ''
+
     #check if needs a deres
-    image_array_flip = deres_array_check(image_array_flip,verbose) 
+    image_array_flip, output_string = deres_array_check(image_array_flip,verbose,output_string)
 
     #check if the shape is even
-    image_array_flip = even_shape_check(image_array_flip,verbose)
+    image_array_flip, output_string = even_shape_check(image_array_flip,verbose,output_string)
     if verbose: print(np.shape(image_array_flip))
 
     #scale up in luminosity
