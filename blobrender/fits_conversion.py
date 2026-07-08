@@ -10,6 +10,13 @@ from .paths import PLOTS, CONFIGS, SIM_DAT
 from . import tools
 from blobrender.help_strings import HELP_DICT
 
+# default_simulation.yaml is shared with simulation_luminosity.py; only these
+# keys are actually read by this script.
+RELEVANT_KEYS = [
+    'system_name', 'nu_observe', 'L_sim', 'distance_in_pc', 'xresolution',
+    'yresolution', 'image_filename',
+]
+
 
 def deres_array_check(image,verbose,output_string):
     """
@@ -127,7 +134,7 @@ def main():
     "   Handles reshaping and resolution checks to make appropriate input to the prediction stafe." \
     "   Default values from default_prediction.yaml, unless otherwise specified with --config. Updates default_prediction.yaml accordingly." \
 
-    args = tools.get_arguments(yaml_file,HELP_DICT,description)
+    args = tools.get_arguments(yaml_file,HELP_DICT,description,allowed_keys=RELEVANT_KEYS)
     
 
     # Unpack arguments

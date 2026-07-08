@@ -6,6 +6,14 @@ import os
 from .paths import SIM_DAT, PLOTS, CONFIGS
 from blobrender.help_strings import HELP_DICT
 
+# default_simulation.yaml is shared with fits_conversion.py; only these keys
+# are actually read by this script.
+RELEVANT_KEYS = [
+    'system_name', 'image_timestep', 'kappa', 'theta', 'distance_in_pc',
+    'alpha', 'P_sim', 'L_sim', 'yresolution', 'nu_observe', 'eta', 'dtype',
+    'load_interp',
+]
+
 ####not currently using this functions because I know the size of my sims but can use it to crop the image if needed
 def find_limits(v,x1,x2,buffer_size,minimum_size):
     ##find top limit
@@ -124,7 +132,7 @@ def main():
     """
     # Load defaults from YAML
     yaml_file = os.path.join(CONFIGS,'default_simulation.yaml')
-    args = tools.get_arguments(yaml_file,HELP_DICT)
+    args = tools.get_arguments(yaml_file,HELP_DICT,allowed_keys=RELEVANT_KEYS)
 
     # Unpack arguments
 

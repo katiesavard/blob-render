@@ -32,7 +32,13 @@ def loader_bar(i,range,modulo): #just for output purposes
         print(s,end="...",flush=True)
         prev_perc=perc+modulo
 
-def get_arguments(default_yaml_file,help_dict=None,description=' '):
+def get_arguments(default_yaml_file,help_dict=None,description=' ',allowed_keys=None):
+    """
+    allowed_keys restricts which YAML keys become CLI arguments, for scripts that
+    share a YAML file with other scripts but only care about a subset of its keys.
+    The full YAML (including keys outside allowed_keys) is still loaded and
+    written back untouched, so other scripts' values aren't lost.
+    """
     # Step 1: Pre-parse --config to determine which YAML file to use
     pre_parser = argparse.ArgumentParser(add_help=False)
     pre_parser.add_argument('--config', type=str, default=default_yaml_file,
@@ -40,13 +46,16 @@ def get_arguments(default_yaml_file,help_dict=None,description=' '):
     args_config, remaining_argv = pre_parser.parse_known_args()
     yaml_file = args_config.config
 
-    
+
     # Step 2: Load defaults from YAML
     with open(yaml_file, 'r') as f:
         defaults = yaml.safe_load(f)
 
+    keys = [k for k in defaults if allowed_keys is None or k in allowed_keys]
+
     # Step 3: Enforce types from TYPES_DICT
-    for key, value in defaults.items():
+    for key in keys:
+        value = defaults[key]
         desired_type = TYPES_DICT.get(key)
         if desired_type is not None and not isinstance(value, desired_type):
             try:
@@ -57,16 +66,17 @@ def get_arguments(default_yaml_file,help_dict=None,description=' '):
                     value = desired_type(value)
             except Exception:
                 pass  # If conversion fails, keep original
-            defaults[key] = value      
-    
-    # Step 4: Filter help_dict to only keys present in the YAML
-    filtered_help = {k: v for k, v in (help_dict or HELP_DICT).items() if k in defaults}
-    
-    # Step 5: Main parser with all arguments
+            defaults[key] = value
+
+    # Step 4: Filter help_dict to only keys in scope
+    filtered_help = {k: v for k, v in (help_dict or HELP_DICT).items() if k in keys}
+
+    # Step 5: Main parser with arguments for keys in scope
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('--config', type=str, default=default_yaml_file,
-                        help="Path to the YAML config file (default: %(default)s)")    
-    for key, value in defaults.items():
+                        help="Path to the YAML config file (default: %(default)s)")
+    for key in keys:
+        value = defaults[key]
         arg_type = TYPES_DICT.get(key, type(value))
         help_str = filtered_help.get(key, f'(default from YAML: {value})')
         # Handle booleans as store_true/store_false
@@ -79,10 +89,11 @@ def get_arguments(default_yaml_file,help_dict=None,description=' '):
 
     print(f"Using config file: {yaml_file}")
 
-    # Step 6: Update YAML if any values changed
+    # Step 6: Update YAML if any in-scope values changed (write the full dict back,
+    # so keys outside allowed_keys that belong to other scripts are preserved)
     updated = False
     changes = []
-    for key in defaults:
+    for key in keys:
         arg_val = getattr(args, key)
         if defaults[key] != arg_val:
             changes.append(f"{key}: {defaults[key]} -> {arg_val}")
@@ -95,10 +106,10 @@ def get_arguments(default_yaml_file,help_dict=None,description=' '):
         print(f"Updated {yaml_file} with new values:")
         for change in changes:
             print("  " + change)
-    
+
     # Step 7: Print summary
     print("\nSummary of parameters used:")
-    for key in defaults:
+    for key in keys:
         arg_val = getattr(args, key)
         source = "command line" if any(f"{key}:" in change for change in changes) else "YAML"
         print(f"  {key}: {arg_val}   (from {source})")
