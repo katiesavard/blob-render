@@ -116,7 +116,7 @@ def main():
     ##############       defining variables       ############################
 
     verbose = True #prints to screen as well as to file
-    update_yaml = True #update the yaml file with the new fits name
+    should_update_yaml = True #update the yaml file with the new fits name
     reflect_image = False
     adjust_image = False
 
@@ -194,7 +194,7 @@ def main():
     #now check what the resolution size is in real units for wsclean:
     output_string, xasec = unit_print(xres,yres,L_sim,distance_in_pc, output_string,verbose) #input to wsclean
 
-    if update_yaml:
+    if should_update_yaml:
         #update the yaml file with the new fits name
         yaml_path = os.path.join(CONFIGS,'default_prediction.yaml')
         tools.update_yaml('fitsfile_name',fits_name,yaml_path)

@@ -131,7 +131,7 @@ def main():
     # will generate an SKA-Mid-sized Measurement Set
 
     overwrite = True # Remove any existing MS with the same name
-    update_yaml = True # Update the YAML file with the new MS name
+    should_update_yaml = True # Update the YAML file with the new MS name
 
 
     yaml_file = os.path.join(CONFIGS,'default_MSbuilder.yaml')
@@ -319,7 +319,7 @@ def main():
     sm.close()
 
 
-    if update_yaml:
+    if should_update_yaml:
         yaml_path = os.path.join(CONFIGS,'default_prediction.yaml')
         update_yaml('ms_name',ms_name,yaml_path)
         update_yaml('telescopename',telescopename,yaml_path)

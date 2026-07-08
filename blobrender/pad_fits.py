@@ -78,7 +78,7 @@ def padded_fits_name(fname):
         return f"{fname}_padded"
 
 def main():
-    update_yaml= True
+    should_update_yaml = True
 
     yaml_file = os.path.join(CONFIGS,'default_prediction.yaml')
     args = tools.get_arguments(yaml_file,HELP_DICT)
@@ -119,7 +119,7 @@ def main():
     else:
         print(f"FITS image already meets FOV requirements: {fov} arcsec >= {min_fov:.3f} arcsec.")
 
-    if not good_fov and update_yaml:
+    if not good_fov and should_update_yaml:
         tools.update_yaml('xpix',newxpix,yaml_file)
         tools.update_yaml('ypix',newypix,yaml_file)
         tools.update_yaml('fitsfile_name',padded_fits,yaml_file)
