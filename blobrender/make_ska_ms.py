@@ -1,11 +1,4 @@
 import os
-
-# Ensure ~/.casa/data exists before importing casatools
-casa_data_dir = os.path.expanduser("~/.casa/data")
-if not os.path.exists(casa_data_dir):
-    os.makedirs(casa_data_dir, exist_ok=True)
-
-from casatools import simulator, measures, table
 from datetime import datetime
 
 import numpy as np
@@ -15,14 +8,10 @@ from astropy.time import Time
 import astropy.units as u
 
 
-from blobrender import tools
 from blobrender.help_strings import HELP_DICT
 from blobrender.paths import TEL_INFO, CONFIGS
-
-
-sm = simulator()
-me = measures()
-
+from blobrender.tools.basics import get_arguments, update_yaml
+from blobrender.tools.casa_setup import check_casa_observatory, import_casa_tools
 
 
 def wgs84_to_ecef(lon_deg, lat_deg, height_m):
@@ -145,20 +134,11 @@ def main():
     update_yaml = True # Update the YAML file with the new MS name
 
 
-    #I put this code at the top of the script to ensure that ~/.casa/data exists,
-    # before I had to restart the script but maybe now that it's at the top it's fine (tbd)
-    """
-        casa_data_dir = os.path.expanduser("~/.casa/data")
-        if not os.path.exists(casa_data_dir):
-            print(f"Creating {casa_data_dir} and restarting script...")
-            os.makedirs(casa_data_dir, exist_ok=True)
-            # Restart the script
-            os.execv(sys.executable, [sys.executable] + sys.argv)
-    """
-
-
     yaml_file = os.path.join(CONFIGS,'default_MSbuilder.yaml')
-    args = tools.get_arguments(yaml_file,HELP_DICT)
+    args = get_arguments(yaml_file,HELP_DICT)
+    simulator, measures, _table = import_casa_tools(fix_data=args.fix_casa_data)
+    sm = simulator()
+    me = measures()
     
     telescopename = args.telescopename # 'SKA-Mid'
 
@@ -263,12 +243,12 @@ def main():
         # Use MeerKAT as the reference location since CASA knows about it
         if telescopename == 'SKA-Mid' or telescopename == 'MeerKAT':
             # For SKA-Mid, we assume the MeerKAT configuration
-            array_center = me.observatory('MeerKAT')    
+            array_center = check_casa_observatory(me, 'MeerKAT')
         elif telescopename == 'e-MERLIN':
-            array_center = me.observatory('e-MERLIN')  
+            array_center = check_casa_observatory(me, 'e-MERLIN')
         elif telescopename in [obs.upper for obs in me.obslist()]:
             #if its not emerlin or meerkat, but it is a known observatory 
-            array_center = me.observatory(telescopename) 
+            array_center = check_casa_observatory(me, telescopename)
         else:
             # If the telescope is not a known observatory, we use the geometric mean of the antenna positions
             array_mean = geometric_mean_antenna(antennas_xyz)
@@ -341,8 +321,8 @@ def main():
 
     if update_yaml:
         yaml_path = os.path.join(CONFIGS,'default_prediction.yaml')
-        tools.update_yaml('ms_name',ms_name,yaml_path)
-        tools.update_yaml('telescopename',telescopename,yaml_path)
+        update_yaml('ms_name',ms_name,yaml_path)
+        update_yaml('telescopename',telescopename,yaml_path)
 
 if __name__ == "__main__":
     main()

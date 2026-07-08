@@ -37,6 +37,7 @@ HELP_DICT = {
     "load_interp": "Load interpolation data",
     "container_name": "Name of the container for running the simulation",
     "container_type": "Type of container to use (e.g., 'singularity', 'docker', or 'none')",
+    "fix_casa_data": "Run casaconfig to populate/update CASA runtime data before importing casatools",
 }
 
 TYPES_DICT = {
@@ -73,5 +74,6 @@ TYPES_DICT = {
     "nu_observe": float,
     "eta": float,
     "dtype": str,
-    "load_interp": bool
+    "load_interp": bool,
+    "fix_casa_data": bool
 }

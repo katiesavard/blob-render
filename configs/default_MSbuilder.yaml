@@ -8,3 +8,4 @@ nchan: 8 # number of channels
 t_int: '120s' # in seconds: Note that this is the correlator dump time, not total track length
 start_ha: '-0.2h' # Start and end times are relative to transit
 end_ha: '+0.2h' #hourangle
+fix_casa_data: false
