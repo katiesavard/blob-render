@@ -3,10 +3,11 @@ import numpy as np
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 import sys
-sys.path.append("/Users/savard/PLUTO/pluto_playtime/plotting_analysis/")
-from pyplutplot import * 
-from fits_conversion import *
+import matplotlib.pyplot as plt
 import aplpy
+
+from . import tools
+from .fits_conversion import deres_array_check, even_shape_check
 
 def header_adjust(fits_name,image_array_flip,RA_cent,DEC_cent,xres,yres):
     hdu = fits.PrimaryHDU(image_array_flip)
@@ -51,14 +52,14 @@ def plot_fits(eht_fits,frame_flux,time,results_folder,imtstep):
     f1.scalebar.set_label(r'20$\mu$as')
     f1.add_label(x=0.1,y=0.1,text='{} mJy'.format(frame_flux),relative=True,color='pink')
     f1.set_title('{} seconds'.format(time))
-    save_fig(results_folder,'plotfits_{}'.format(imtstep),overwrite=True)
+    tools.save_fig(results_folder,'plotfits_{}'.format(imtstep),overwrite=True)
 
 def unit_print(D,image,L_sim,distance_in_pc,verbose):
     #now check what the resolution size is in real units for wsclean:
     ax1_check = D.x1[:len(image[0])]
     ax2_check = D.x2[:len(image.T[0])]
-    x = m_to_arcseconds(ax1_check*L_sim,distance_in_pc)
-    y = m_to_arcseconds(ax2_check*L_sim,distance_in_pc)
+    x = tools.m_to_arcseconds(ax1_check*L_sim,distance_in_pc)
+    y = tools.m_to_arcseconds(ax2_check*L_sim,distance_in_pc)
     xres = x[2]-x[1]
     yres = y[2]-y[1]
     if verbose:
@@ -92,7 +93,7 @@ def main():
     ez_filename = 'pixel_lum_'+system_name+'_'+str(image_timestep)+'_'+str(nu_observe/1e9)+'GHz'
 
     ####### load in the image
-    image_array = load_list(eht_results_folder,ez_filename)
+    image_array = tools.load_list(eht_results_folder,ez_filename)
     image_array_flip = np.concatenate((np.flip(image_array,axis=1),np.array(image_array)),axis=1)
 
     #### ----- adjust luminosity array ---- ######
@@ -115,7 +116,7 @@ def main():
     exta_descriptors='_EHTscaled'
     eht_fits = eht_results_folder+'/'+fits_name+exta_descriptors+'.fits'
 
-    D = load_data_obj(data_dir,image_timestep,data_type='flt')
+    D = tools.load_data_obj(data_dir,image_timestep,data_type='flt')
     xres, yres = unit_print(D,image_array,L_sim,distance_in_pc,verbose) #get resolution
     del D
 
@@ -128,8 +129,8 @@ def main():
     position_angle = 0.0 * u.deg
 
     #now load in what the separation should be 
-    time = load_list(eht_results_folder,'timearray_projected_scaled') #seconds
-    disp = load_list(eht_results_folder,'disparray_projected_scaled') #uas
+    time = tools.load_list(eht_results_folder,'timearray_projected_scaled') #seconds
+    disp = tools.load_list(eht_results_folder,'disparray_projected_scaled') #uas
 
     time_current = time[image_timestep] #seconds
     disp_current = disp[image_timestep] #uas
