@@ -183,10 +183,28 @@ def main():
 
     # open the displacement file and get the centre of the image, this is to crop the image such that the blob is in the middle
     # might not be good for general use, hence why I have left the other function in
+    #
+    # NOTE: this crop-by-position approach, and the disp_array_<system_name>.npy
+    # file it depends on, are specific to Katie's own analysis pipeline (the
+    # position isn't produced by PLUTO or by anything else in blobrender).
+    # If you don't have one for your own simulation, either precompute it in
+    # the same format, or swap this block for the find_limits() function
+    # above, which detects the blob position from the data directly.
     file_disp = 'disp_array_'+str(system_name)
     init_offset = 200
-    d_vals = tools.load_list(data_dir,file_disp)+init_offset
+    try:
+        d_vals = tools.load_list(data_dir,file_disp)+init_offset
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"Could not find {file_disp}.npy in {data_dir}. simulation-luminosity "
+            "crops the frame around the blob's position at each timestep, using a "
+            "precomputed per-timestep position file that is specific to this "
+            f"analysis pipeline (not a standard PLUTO output). Provide {file_disp}.npy "
+            "in that directory, or adapt this script to use find_limits() to detect "
+            "the blob position from the data directly."
+        ) from exc
     centre = d_vals[image_timestep]
+    print(f"Cropping frame around position {centre} (timestep {image_timestep}, from {file_disp}.npy)")
     stop_index_side = 650
     minimum_size = 1300
 

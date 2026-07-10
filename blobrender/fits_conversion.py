@@ -14,7 +14,7 @@ from blobrender.help_strings import HELP_DICT
 # keys are actually read by this script.
 RELEVANT_KEYS = [
     'system_name', 'nu_observe', 'L_sim', 'distance_in_pc', 'xresolution',
-    'yresolution', 'image_filename',
+    'yresolution', 'image_filename', 'interactive',
 ]
 
 
@@ -132,10 +132,10 @@ def main():
     yaml_file = os.path.join(CONFIGS,'default_simulation.yaml')
     description = "Convert simulation outputs (numpy or image format) to FITS images for use with blobrender." \
     "   Handles reshaping and resolution checks to make appropriate input to the prediction stafe." \
-    "   Default values from default_prediction.yaml, unless otherwise specified with --config. Updates default_prediction.yaml accordingly." \
+    "   Default values from default_simulation.yaml, unless otherwise specified with --config. Updates default_prediction.yaml accordingly." \
 
     args = tools.get_arguments(yaml_file,HELP_DICT,description,allowed_keys=RELEVANT_KEYS)
-    
+
 
     # Unpack arguments
     system_name = args.system_name
@@ -145,6 +145,7 @@ def main():
     xres = args.xresolution
     yres = args.yresolution
     image_filename = args.image_filename
+    interactive = args.interactive
 
     
     
@@ -158,7 +159,7 @@ def main():
     #user checks
     output_string = print_and_save("System = "+system_name,output_string,verbose)
 
-    if verbose:
+    if interactive:
         inp = input("Continue with current setup? (y/n) : ")
         if inp=='y':
             print("")
@@ -173,14 +174,16 @@ def main():
     if reflect_image:
         image_array_flip = np.concatenate((np.flip(image_array,axis=1),np.array(image_array)),axis=1)
     else:
-        image_array_flip = image_array 
+        image_array_flip = image_array
+
+    image_array = image_array_flip
 
     ##############       reshape array       ############################
     output_string = print_and_save('Array shape: '+str(np.shape(image_array_flip)),output_string,verbose)
 
     if adjust_image:
         #deres if needs
-        image_array, output_string = deres_array_check(image_array_flip,verbose,output_string)
+        image_array, output_string = deres_array_check(image_array,verbose,output_string)
 
         #make even if needs
         image_array, output_string = even_shape_check(image_array,verbose,output_string)

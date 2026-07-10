@@ -3,13 +3,19 @@ from astropy.io import fits
 import numpy as np
 from astropy import units as u
 from astropy.coordinates import SkyCoord
-import sys
 import matplotlib.pyplot as plt
-import aplpy
 
-from .paths import SIM_DAT, PLOTS
+from .paths import SIM_DAT, PLOTS, CONFIGS
 from . import tools
 from .fits_conversion import deres_array_check, even_shape_check
+from blobrender.help_strings import HELP_DICT
+
+# default_simulation.yaml is shared with simulation_luminosity.py/fits_conversion.py;
+# only these keys are actually read by this script.
+RELEVANT_KEYS = [
+    'system_name', 'image_timestep', 'L_sim', 'nu_observe', 'distance_in_pc',
+    'dtype',
+]
 
 def header_adjust(fits_name,image_array_flip,RA_cent,DEC_cent,xres,yres):
     hdu = fits.PrimaryHDU(image_array_flip)
@@ -41,6 +47,14 @@ def header_adjust(fits_name,image_array_flip,RA_cent,DEC_cent,xres,yres):
     hdul.flush()
 
 def plot_fits(eht_fits,frame_flux,time,results_folder,imtstep):
+    try:
+        import aplpy
+    except ImportError as exc:
+        raise ImportError(
+            "resize-fits plotting requires aplpy. Install it with "
+            "`pip install -e '.[plotting]'`."
+        ) from exc
+
     fig = plt.figure(figsize=(7, 7))
     f1 = aplpy.FITSFigure(eht_fits,figure=fig)
     f1.show_colorscale(cmap='inferno')
@@ -72,18 +86,15 @@ def unit_print(D,image,L_sim,distance_in_pc,verbose):
 def main():
 
     ######### system parameters
-    system_name = 'ri0.001_rb0.02_lz2'
+    yaml_file = os.path.join(CONFIGS,'default_simulation.yaml')
+    args = tools.get_arguments(yaml_file,HELP_DICT,allowed_keys=RELEVANT_KEYS)
 
-    args = sys.argv[1:]
-    if len(args)==1:
-        image_timestep = int(args[0])
-    else:
-        print('specify timestep')
-        return
-    
-    L_sim = 465841907.0462244 #m
-    nu_observe = (86.0 * 1e9) #GHz 
-    distance_in_pc = 2960
+    system_name = args.system_name
+    image_timestep = args.image_timestep
+    L_sim = args.L_sim
+    nu_observe = args.nu_observe
+    distance_in_pc = args.distance_in_pc
+    dtype = args.dtype
 
     verbose = True
     print_result = True
@@ -120,7 +131,7 @@ def main():
     exta_descriptors='_EHTscaled'
     eht_fits = eht_results_folder+'/'+fits_name+exta_descriptors+'.fits'
 
-    D = tools.load_data_obj(data_dir,image_timestep,data_type='flt')
+    D = tools.load_data_obj(data_dir,image_timestep,data_type=dtype)
     xres, yres = unit_print(D,image_array,L_sim,distance_in_pc,verbose) #get resolution
     del D
 
