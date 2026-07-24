@@ -2,8 +2,8 @@ HELP_DICT = {
     "tel_name": "Telescope name",
     "source_ra": "Right Ascension of the source",
     "source_dec": "Declination of the source",
-    "f0": "Starting frequency",
-    "df": "Frequency step size",
+    "f0": "Starting frequency (MHz, unitless number - 'MHz' is appended automatically)",
+    "bandwidth": "Total bandwidth in MHz; channel width is computed as bandwidth / (nchan - 1)",
     "nchan": "Number of frequency channels",
     "t_int": "Integration time",
     "start_ha": "Start hour angle",
@@ -39,6 +39,11 @@ HELP_DICT = {
     "container_type": "Type of container to use (e.g., 'singularity', 'docker', or 'none')",
     "fix_casa_data": "Run casaconfig to populate/update CASA runtime data before importing casatools",
     "interactive": "Prompt for confirmation before proceeding (set to false for non-interactive/batch runs)",
+    "crop_mode": "How to crop the simulation frame before processing: 'position' (default, uses a precomputed disp_array_<system_name>.npy file), 'detect' (finds emission in the data directly), or 'none' (process the full domain, slower but no assumptions).",
+    "crop_size_r": "Radial-axis crop size (pixels from the start of the r-axis), used when crop_mode is 'position'",
+    "crop_size_z": "Vertical-axis crop window size (pixels, centred on the blob position), used when crop_mode is 'position'",
+    "crop_buffer_size": "Padding (pixels) added around detected emission, used when crop_mode is 'detect'",
+    "crop_min_size": "Minimum crop window size (pixels) to fall back to, used when crop_mode is 'detect'",
 }
 
 TYPES_DICT = {
@@ -77,5 +82,10 @@ TYPES_DICT = {
     "dtype": str,
     "load_interp": bool,
     "fix_casa_data": bool,
-    "interactive": bool
+    "interactive": bool,
+    "crop_mode": str,
+    "crop_size_r": int,
+    "crop_size_z": int,
+    "crop_buffer_size": int,
+    "crop_min_size": int
 }

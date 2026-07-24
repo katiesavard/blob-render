@@ -11,10 +11,10 @@ from blobrender.help_strings import HELP_DICT
 RELEVANT_KEYS = [
     'system_name', 'image_timestep', 'kappa', 'theta', 'distance_in_pc',
     'alpha', 'P_sim', 'L_sim', 'yresolution', 'nu_observe', 'eta', 'dtype',
-    'load_interp',
+    'load_interp', 'crop_mode', 'crop_size_r', 'crop_size_z',
+    'crop_buffer_size', 'crop_min_size',
 ]
 
-####not currently using this functions because I know the size of my sims but can use it to crop the image if needed
 def find_limits(v,x1,x2,buffer_size,minimum_size):
     ##find top limit
 
@@ -54,9 +54,6 @@ def find_limits(v,x1,x2,buffer_size,minimum_size):
                 stop_index_side = index
                 break
 
-    buffer_size = 100
-    minimum_size = 1300
-
     stop_index_top = stop_index_top + buffer_size
     stop_index_bottom = stop_index_bottom - buffer_size
     stop_index_side = stop_index_side + buffer_size
@@ -75,11 +72,62 @@ def find_limits(v,x1,x2,buffer_size,minimum_size):
 
     return stop_index_top, stop_index_bottom, stop_index_side
     
-def find_limits_com(stop_index_side,minimum_size,centre,yres):
-    stop_index_bottom = (int(centre)/yres - int(minimum_size/2))
-    stop_index_top = int(centre)/yres + int(minimum_size/2)
-    stop_index_bottom
-    return int(stop_index_top), int(stop_index_bottom), int(stop_index_side)
+def crop_frame(crop_mode, v, x1, x2, yres, data_dir, system_name, image_timestep,
+                crop_size_r, crop_size_z, crop_buffer_size, crop_min_size):
+    """
+    Decide which portion of the simulation grid to process, before the
+    (expensive) interpolation step below. Returns index bounds
+    (stop_index_top, stop_index_bottom, stop_index_side) into x2 (z-axis,
+    vertical) and x1 (r-axis, radial).
+
+    crop_mode:
+        'none'     - process the whole domain. No assumptions, but slower and
+                     more memory-hungry, and the larger frame carries through
+                     fits-conversion/pad-fits/predict too.
+        'position' - a crop_size_z-tall window centred on a precomputed blob
+                     position (disp_array_<system_name>.npy), truncated to
+                     crop_size_r along the radial axis. Specific to analysis
+                     pipelines that maintain such a position file; this isn't
+                     a standard PLUTO output.
+        'detect'   - crop_buffer_size of padding around emission detected
+                     directly from the data (no position file needed),
+                     falling back to crop_min_size if the detected region is
+                     smaller than that. Its detection threshold is a fixed
+                     assumption too, so it may not generalise to every
+                     simulation's flux scale.
+    """
+    print(f"crop_mode: '{crop_mode}'")
+
+    if crop_mode == 'none':
+        print("Processing the full simulation domain (no cropping).")
+        return len(x2), 0, len(x1)
+
+    if crop_mode == 'position':
+        print(f"Using crop_size_r={crop_size_r}, crop_size_z={crop_size_z}")
+        file_disp = 'disp_array_'+str(system_name)
+        init_offset = 200
+        try:
+            d_vals = tools.load_list(data_dir,file_disp)+init_offset
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(
+                f"Could not find {file_disp}.npy in {data_dir}. crop_mode='position' "
+                "crops the frame around the blob's position at each timestep, using a "
+                "precomputed per-timestep position file that is specific to this "
+                f"analysis pipeline (not a standard PLUTO output). Provide {file_disp}.npy "
+                "in that directory, set crop_mode: 'none' to process the full domain, or "
+                "crop_mode: 'detect' to find the blob position from the data directly."
+            ) from exc
+        centre = d_vals[image_timestep]
+        print(f"Cropping frame around position {centre} (timestep {image_timestep}, from {file_disp}.npy)")
+        stop_index_bottom = int(centre)/yres - int(crop_size_z/2)
+        stop_index_top = int(centre)/yres + int(crop_size_z/2)
+        return int(stop_index_top), int(stop_index_bottom), int(crop_size_r)
+
+    if crop_mode == 'detect':
+        print(f"Detecting emission directly from the data, using crop_buffer_size={crop_buffer_size}, crop_min_size={crop_min_size}")
+        return find_limits(v, x1, x2, crop_buffer_size, crop_min_size)
+
+    raise ValueError(f"Unknown crop_mode {crop_mode!r}. Use 'none', 'position', or 'detect'.")
 
 def ordered_cylindrical_grid(theta_len,z_len,r_len,thetas,z,r,values):
     # creating long 2D arrays which correspond to each point in the frame -> ordered by constant z 
@@ -149,6 +197,11 @@ def main():
     eta = args.eta
     dtype = args.dtype
     load_interp = args.load_interp
+    crop_mode = args.crop_mode
+    crop_size_r = args.crop_size_r
+    crop_size_z = args.crop_size_z
+    crop_buffer_size = args.crop_buffer_size
+    crop_min_size = args.crop_min_size
 
     #some calculated and related values
     exponent = (3-alpha)/2
@@ -177,38 +230,11 @@ def main():
     """if emission isnt in the whole domain then crop before you do the analysis (to save computational time)
     """
 
-    #buffer_size = 100
-    #minimum_size = 1300
-    #stop_index_top, stop_index_bottom, stop_index_side = find_limits(v,x1,x2,buffer_size,minimum_size)
+    stop_index_top, stop_index_bottom, stop_index_side = crop_frame(
+        crop_mode, v, x1, x2, yres, data_dir, system_name, image_timestep,
+        crop_size_r, crop_size_z, crop_buffer_size, crop_min_size,
+    )
 
-    # open the displacement file and get the centre of the image, this is to crop the image such that the blob is in the middle
-    # might not be good for general use, hence why I have left the other function in
-    #
-    # NOTE: this crop-by-position approach, and the disp_array_<system_name>.npy
-    # file it depends on, are specific to Katie's own analysis pipeline (the
-    # position isn't produced by PLUTO or by anything else in blobrender).
-    # If you don't have one for your own simulation, either precompute it in
-    # the same format, or swap this block for the find_limits() function
-    # above, which detects the blob position from the data directly.
-    file_disp = 'disp_array_'+str(system_name)
-    init_offset = 200
-    try:
-        d_vals = tools.load_list(data_dir,file_disp)+init_offset
-    except FileNotFoundError as exc:
-        raise FileNotFoundError(
-            f"Could not find {file_disp}.npy in {data_dir}. simulation-luminosity "
-            "crops the frame around the blob's position at each timestep, using a "
-            "precomputed per-timestep position file that is specific to this "
-            f"analysis pipeline (not a standard PLUTO output). Provide {file_disp}.npy "
-            "in that directory, or adapt this script to use find_limits() to detect "
-            "the blob position from the data directly."
-        ) from exc
-    centre = d_vals[image_timestep]
-    print(f"Cropping frame around position {centre} (timestep {image_timestep}, from {file_disp}.npy)")
-    stop_index_side = 650
-    minimum_size = 1300
-
-    stop_index_top, stop_index_bottom, stop_index_side = find_limits_com(stop_index_side,minimum_size,centre,yres)
     print('top: '+str(stop_index_top))
     print('bottom: '+str(stop_index_bottom))
     print('side: '+str(stop_index_side))

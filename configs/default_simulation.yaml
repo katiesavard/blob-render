@@ -8,6 +8,11 @@ gamma: 2.0
 image_filename: maxij1820_simulation.jpg
 image_timestep: 1
 interactive: true
+crop_mode: position
+crop_size_r: 650
+crop_size_z: 1300
+crop_buffer_size: 100
+crop_min_size: 1300
 kappa: 0.1
 load_interp: false
 nu_observe: 1280000000.0
