@@ -14,7 +14,7 @@ from blobrender.help_strings import HELP_DICT
 # keys are actually read by this script.
 RELEVANT_KEYS = [
     'system_name', 'nu_observe', 'L_sim', 'distance_in_pc', 'xresolution',
-    'yresolution', 'image_filename', 'interactive',
+    'yresolution', 'image_filename', 'interactive','image_timestep'
 ]
 
 
@@ -124,8 +124,8 @@ def main():
 
     verbose = True #prints to screen as well as to file
     should_update_yaml = True #update the yaml file with the new fits name
-    reflect_image = False
-    adjust_image = False
+    reflect_image = True
+    adjust_image = True
 
      # Load defaults from YAML
 
@@ -146,6 +146,7 @@ def main():
     yres = args.yresolution
     image_filename = args.image_filename
     interactive = args.interactive
+    image_timestep=args.image_timestep
 
     
     
@@ -196,7 +197,7 @@ def main():
     hdu = fits.PrimaryHDU(image_array)
 
     exta_descriptors=''
-    fits_name = 'fits_'+system_name+'_'+str(nu_observe/1e9)+'GHz'+exta_descriptors+'.fits'
+    fits_name = 'fits_'+system_name+'_'+str(image_timestep)+'_'+str(nu_observe/1e9)+'GHz'+exta_descriptors+'.fits'
     save_to = data_folder+'/'+fits_name
     hdu.writeto(save_to,overwrite=True)
 
