@@ -11,12 +11,14 @@ def add_data_col(msname, modelcol, newcol):
     colnames = tt.colnames()
 
     if newcol in colnames:
-        print(f"{newcol} already exists — replacing it")
-
+#instead of replacing jsut remove it:
+        print(f"{newcol} already exists — REMOVE it")
+        tt.removecols(newcol)
+#Here changed all of this renaming section to just removing the file as if not it just does not work.
         # Remove old column (not supported directly — workaround by renaming)
-        alt_name = newcol + "_OLD"
-        print(f"Renaming {newcol} → {alt_name} to avoid conflict")
-        tt.renamecol(newcol, alt_name)
+       # alt_name = newcol + "_OLD"
+       # print(f"Renaming {newcol} → {alt_name} to avoid conflict")
+       # tt.renamecol(newcol, alt_name)
 
     # Add new writable column
     print(f"Creating new column {newcol}")
@@ -27,11 +29,18 @@ def add_data_col(msname, modelcol, newcol):
 
     # Initialize with zeros
     model_data = tt.getcol(modelcol)
-    try:
-        tt.putcol(newcol, np.zeros_like(model_data))
-        print(f"{newcol} created and initialized successfully.")
-    except RuntimeError as e:
-        print(f"ERROR: Column was added, but could not be initialized: {e}")
+    new_data=model_data.copy()
+#injecting core here is causing issues.
+   # core_flux= 2e-3 #this is in Jy
+    #new_data+=core_flux
+    tt.putcol(newcol,new_data)
+    print(f"{newcol} created successfully")
+#    try:
+ #       tt.putcol(newcol, np.zeros_like(model_data))
+#        tt.putcol(newcol, new_data)
+#        print(f"{newcol} created and initialized successfully with a pixel core of {core_flux} Jy.")
+#    except: RuntimeError as e:
+#        print(f"ERROR: Column was added, but could not be initialized: {e}")
 
     tt.close()
 

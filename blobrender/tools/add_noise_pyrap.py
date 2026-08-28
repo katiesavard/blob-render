@@ -2,6 +2,7 @@
 
 import numpy as np
 import yaml
+#from casacore.tables import table
 from pyrap.tables import table
 import argparse
 
@@ -88,8 +89,8 @@ def add_visibility_noise_from_names(ms_path, sefd_dict_filename, delta_nu, t_int
 
             if sefd1 is None or sefd2 is None:
                 raise ValueError(f"Missing SEFD for one of: {name1}, {name2}")
-
-            sigma = np.sqrt(sefd1 * sefd2) / denom
+            eta=0.7 #included 0.7 efficiency factor from e-MERLIN calculator. For MeerKAT use 0.7 as well.
+            sigma = np.sqrt(sefd1 * sefd2) /(eta* denom)
             nchan, npol = data_chunk.shape[1:3]
             noise_real = np.random.normal(0, sigma, (nchan, npol))
             noise_imag = np.random.normal(0, sigma, (nchan, npol))
@@ -107,8 +108,8 @@ def main():
     parser = argparse.ArgumentParser(description='Add noise to visibilities in a Measurement Set.')
     parser.add_argument('--ms_path', type=str, required=True, help='Path to the Measurement Set (e.g., eMERLIN.ms).')
     parser.add_argument('--sefd_dict_filename', type=str, required=True, help='YAML file with per-antenna SEFDs.')
-    parser.add_argument('--delta_nu', type=float, default=1e6, help='Channel bandwidth in Hz (default: 1e6).')
-    parser.add_argument('--t_int', type=float, default=1.0, help='Integration time per visibility in seconds.')
+    parser.add_argument('--delta_nu', type=float, help='Channel bandwidth in Hz (default: 1e6).')
+    parser.add_argument('--t_int', type=float, help='Integration time per visibility in seconds.')
     parser.add_argument('--column', type=str, default='MODEL_DATA', help='Column to inject noise into.')
     parser.add_argument('--rowchunk', type=int, default=1000, help='Number of rows to process at once.')
 

@@ -110,8 +110,19 @@ def main():
     good_fov, min_fov = check_image_fov(fov, min_b, min_frequency)
     print(good_fov, min_fov)
     new_npix = int(ceil(min_fov / scale)*1.1) # 10% extra padding for those wanting to use uniform weighting when imaging
-    if new_npix*2 > 100000:
-        sys.exit(f"HONQUE HONQUE! New pixel size {new_npix}x{new_npix} is too large. Reduce pixel scale to fit within 100,000 pixels.")
+    if new_npix>5000:
+        print (f"{new_npix}x{new_npix} is TOO large. Will continue anygays..")
+        print (f"the good FOV value is {good_fov}, the minimum FOV value is {min_fov}")
+        print (f"Current pixel scale: {scale:.6f} arcsec/pixel")
+        print (f"Current FOV: {fov:.3f} arcsec")
+        print (f"Minimum required FOV: {min_fov:.3f} arcsec")
+        print (f"Required pixels at current scale: {new_npix}")
+        print (f"Maximum allowed pixel scale: {max_pix:.3f} arcsec/pixel")
+#set a value for new_npix for padding if its too large (capt new_npix):
+       # new_npix=5000
+ #this is the previous code:
+   # if new_npix*2 > 100000:
+    #    sys.exit(f"HONQUE HONQUE! New pixel size {new_npix}x{new_npix} is too large. Reduce pixel scale to fit within 100,000 pixels.")
     output_fits_path = os.path.join(SIM_DAT, os.path.basename(padded_fits))
     if not good_fov:
         newxpix, newypix = pad_fits(fits_path, output_fits_path, new_npix, new_npix)

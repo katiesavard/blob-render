@@ -150,18 +150,22 @@ def main():
     source_dec = args.source_dec #'-40d00m0.0s'
 
     # Frequency setup
-    f0 = args.f0 #'856MHz' # lowest band frequency
+    f0 = args.f0 #'856MHz' # lowest band frequency, or central frequency??
     bandwidth = args.bandwidth #total bandwidth in MHz
-    nchan = args.nchan #8 # number of channels
+    nchan = args.nchan #8 # number of channels per spectral window
     df = (bandwidth)/ (nchan-1.0) # channel width in MHz
-
+    #nspw= 8 #number of spectral windows.
+    #spw_bandwidth=bandwidth/nspw #total bandwidth per spectral window
+    #df=spw_bandwidth/nchan #bandwidth for each channel
+    #lowest_band_edge=f0-(bandwidth/2)
     # Start time and track length
 
 
     #####now_utc = datetime.utcnow() #this can be changed to a specific time if desired
     #####obs_time = now_utc.strftime("%Y/%m/%d/%H:%M:%S") #removed -m and -d for windows compatibility
     
-    obs_date = datetime.utcnow().strftime("%Y-%m-%d") # Observation date in YYYY-MM-DD format
+    obs_date=args.obs_date
+    #obs_date = datetime.utcnow().strftime("%Y-%m-%d") # Observation date in YYYY-MM-DD format
     #changing the start reference time so that it corresponds to the correct transit time, this requires knowing
     #location of the telescope so will do later on. 
     #for now just specifying the date and working out the compatible time later
@@ -189,21 +193,55 @@ def main():
     #--------------------------------------------------------------
     # Read the antenna names and coordinates (name,lon,lat,elevation,diameter)
 
-
+#seems like it should be name, lon, lat, elevation, diameter...
     antenna_filename = telescopename + '.txt'
     layout_file = os.path.join(TEL_INFO, antenna_filename)
     f = open(layout_file)
     antenna_positions = []
     antenna_names = []
     antenna_diameters = []
-    line = f.readline()
-    while line:
+
+#USE THIS PART OF THE CODE in the following way, first array is for e-MERLIN, second is for MeerKAT.
+
+#e-MERLIN takes lat as cols[1] and lon as cols[2].
+
+#MeerKAT takes lat as cols[2] and lon as cols[1]. Careful with capital letters for MeerKAT antenna names.
+
+    selected_antennas = ['Mk2', 'Kn', 'De', 'Da', 'Cm']
+#    selected_antennas = ['M000', 'M002', 'M003', 'M004', 'M005', 'M006', 'M009', 'M010', 'M011', 'M012', 'M013',
+#'M014', 'M015', 'M016', 'M018', 'M019', 'M020', 'M021', 'M022', 'M023', 'M024', 'M026', 'M027', 'M028', 'M029',
+#'M030', 'M031', 'M034', 'M035', 'M036', 'M038', 'M039', 'M040', 'M041', 'M042', 'M043', 'M044', 'M045', 'M046',
+#'M047', 'M048', 'M050', 'M052', 'M053', 'M054', 'M055', 'M056', 'M057', 'M058', 'M059', 'M060', 'M061', 'M062', 'M063']
+    for line in f:
         cols = line.split()
-        antenna_positions.append((float(cols[1]),float(cols[2]),float(cols[3]))) 
-        antenna_names.append(cols[0])
-        antenna_diameters.append(float(cols[4])) # Diameter in metres
-        line = f.readline()
+
+        ant_name = cols[0]
+
+        if ant_name not in selected_antennas:
+            continue #skip this step for antennas that are not in the selected_antenna array.
+        lat=float(cols[1]) #1 for e-MERLIN. 2 for MeerKAT
+        lon=float(cols[2]) #2 for e-MERLIN. 1 for MeerKAT
+        elev=float(cols[3])
+        antenna_positions.append(
+            (lon, lat, elev)        )
+        antenna_names.append(ant_name)
+        antenna_diameters.append(float(cols[4]))
+
     f.close()
+    print("Using antennas:", antenna_names)
+
+#THIS PART OF THE CODE HAS BEEN REPLACED BY THE ABOVE.
+#    line = f.readline()
+#    while line:
+#        cols = line.split()
+#        lat=float(cols[2])
+#        lon=float(cols[1])
+#        elev=float(cols[3])
+#        antenna_positions.append((lon,lat,elev)) 
+#        antenna_names.append(cols[0])
+#        antenna_diameters.append(float(cols[4])) # Diameter in metres
+#        line = f.readline()
+#    f.close()
 
 
     #--------------------------------------------------------------
@@ -273,7 +311,18 @@ def main():
 
     f0 =f"{f0}MHz" # lowest band frequency in MHz
     df = f"{df}MHz" # channel width in MHz
+    #Define the 8 e-MERLIN spectral windows:
+    #spw_names=[]
+    #for i in range(nspw):
+    #    spw_name= f"SPW{i}"
+    #    spw_names.append(spw_name)
+    #    #Centre frequency of the first 0.5 MHz channel in this SPW
+    #    first_chan_freq=(lowest_band_edge+i*spw_bandwidth+df/2)
+    #    print(f"{spw_name}: first channel = {first_chan_freq:.3f} MHz, "
+    #    f"nchan={nchan}, channel width = {df:.3f} MHz")
+    #    sm.setspwindow(spwname=spw_name,freq=f"{first_chan_freq} MHz", deltafreq= f"{df}MHz", freqresolution=f"{df}MHz", nchannels= nchan, stokes='XX YY')
 
+#Define 1 spectral window use:
     sm.setspwindow(spwname = "SPW0",
                 freq = f0,
                 deltafreq = df,
@@ -297,8 +346,9 @@ def main():
 
     #to set the reference time we need to know the telescope longitude
     tel_lon = array_center['m0']['value']
-    obs_time = compute_obs_time(source_ra, start_ha, obs_date, tel_lon)
-
+#APPLY A CHANGE HERE AS HOUR ANGLE POSITIONING IS HAPPENING TWICE. DATE SHOULD HAVE BEEN FOR EXAMPLE 2018-07-10, BUT INSTEAD CODE IS RUNNING 2018-06-10!!
+   # obs_time = compute_obs_time(source_ra, start_ha, obs_date, tel_lon)
+    obs_time= args.obs_time
 
 
 
@@ -310,7 +360,12 @@ def main():
     #reference time refers to the time at which the source will transit the local meridian
     #usehourangle = True means that the start and end times are relative to the source transit time
 
-    # Generate u,v,w tracks
+    # Generate u,v,w tracks for all spectral windows:
+#    for spw_name in spw_names:
+#        print(f"Observing {spw_name}")
+#        sm.observe(sourcename=source_name, spwname=spw_name, starttime=start_ha, stoptime=end_ha)
+#    sm.close()
+#GENERATE u,v,w tracks for only 1 spectral window:
     sm.observe(sourcename = source_name,
             spwname = 'SPW0',
             starttime = start_ha,

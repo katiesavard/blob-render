@@ -100,9 +100,9 @@ def main():
     print_result = True
 
     ######## define filenames
-    data_dir = os.path.join(SIM_DAT, system_name) #set up working directory where data is stored
-    results_folder = os.path.join(PLOTS, system_name)
-    eht_results_folder = os.path.join(SIM_DAT, 'eht_scaled_sims')
+    data_dir = os.path.join(sim_data, system_name) #set up working directory where data is stored
+    results_folder = os.path.join(plots, system_name)
+    eht_results_folder = os.path.join(sim_data, 'eht_scaled_sims')
     ez_filename = 'pixel_lum_'+system_name+'_'+str(image_timestep)+'_'+str(nu_observe/1e9)+'GHz'
 
     ####### load in the image

@@ -1,11 +1,14 @@
-telescopename: SKA-Mid
-new_ms_name: my_ska-mid_sim_1.ms
-source_ra: '12h00m00.0s'
-source_dec: '-40d00m0.0s'
-f0: 856 # MHz lowest band frequency
-bandwidth: 749 # MHz total bandwidth (channel width = bandwidth / (nchan - 1))
+telescopename: e-MERLIN
+new_ms_name: my_emerlin_sim_53.ms
+source_ra: '18h20m21.938s' # '12h00m00.0s'
+source_dec: '07d11m7.18s'         #'-40d00m0.0s'
+f0: 1254.6495  #Compute this as the nu_obs-bandwidth/2 # MHz lowest band frequency
+bandwidth: 511.5 # 512   #749 # MHz total bandwidth (channel width = bandwidth / (nchan - 1))
 nchan: 8 # number of channels
-t_int: '120s' # in seconds: Note that this is the correlator dump time, not total track length
-start_ha: '-0.2h' # Start and end times are relative to transit
-end_ha: '+0.2h' #hourangle
+t_int: '4s' # in seconds: Note that this is the correlator dump time, not total track length
+#Consider that values are being taken as TAI and not UTC for CASA.
+start_ha: '-5.4030h' # Start and end times are relative to transit
+end_ha: '+5.5752h' #hourangle
 fix_casa_data: false
+obs_date: '2018-10-07'
+obs_time: '2018/10/07/12:01:02' #allocate date in YYYY/MM/DD/HH:MM:SS
